@@ -2358,6 +2358,43 @@ device_print_prettyname(device_t dev)
 	return (printf("%s%d: ", name, device_get_unit(dev)));
 }
 
+static int dev_quiet = 0;
+
+TUNABLE_INT("dev.quiet", &dev_quiet);
+
+/**
+ * @brief Return true or false based on if the device represented by
+ * 'dev' should log output.
+ *
+ * @returns true if output should occur, false otherwise.
+ */
+int
+device_should_print(device_t dev)
+{
+	char *pdevs, *string, *token;
+	const char *devname;
+	int should_print = false;
+
+	if (dev_quiet == 0)
+		return (false);
+
+	pdevs = getenv("loud_devices");
+	if (pdevs == NULL)
+		return (false);
+
+	devname = device_get_name(dev);
+	string = pdevs;
+	while ((token = strsep(&string, ", ;")) != NULL) {
+		if (strcmp(token, device_get_name(dev)) == 0) {
+			should_print = true;
+			break;
+	    }
+	}
+
+	freeenv(pdevs);
+	return (should_print);
+}
+
 /**
  * @brief Print the name of the device followed by a colon, a space
  * and the result of calling vprintf() with the value of @p fmt and
@@ -2371,7 +2408,31 @@ device_printf(device_t dev, const char * fmt, ...)
 	va_list ap;
 	int retval;
 
+	if (!device_should_print(dev))
+		return 0;
 	retval = device_print_prettyname(dev);
+	va_start(ap, fmt);
+	retval += vprintf(fmt, ap);
+	va_end(ap);
+	return (retval);
+}
+
+/**
+ * @brief Print from device without dev name prefix.  Should be used
+ * in drivers instread of printf(9) so that routing and muting can
+ * occur.
+ *
+ * @returns the number of characters printed
+ */
+int
+device_printf_n(device_t dev, const char * fmt, ...)
+{
+	va_list ap;
+	int retval = 0;
+
+	if (!device_should_print(dev))
+		return 0;
+
 	va_start(ap, fmt);
 	retval += vprintf(fmt, ap);
 	va_end(ap);
