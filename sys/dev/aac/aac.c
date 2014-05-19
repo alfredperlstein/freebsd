@@ -748,9 +748,9 @@ aac_shutdown(device_t dev)
 	cc->ContainerId = 0xffffffff;
 	if (aac_sync_fib(sc, ContainerCommand, 0, fib,
 	    sizeof(struct aac_close_command)))
-		printf("FAILED.\n");
+		device_printf_n(sc->aac_dev, "FAILED.\n");
 	else
-		printf("done\n");
+		device_printf_n(sc->aac_dev, "done\n");
 #if 0
 	else {
 		fib->data[0] = 0;
@@ -762,9 +762,9 @@ aac_shutdown(device_t dev)
 		 */
 		if (aac_sync_fib(sc, FsaHostShutdown, AAC_FIBSTATE_SHUTDOWN,
 		    fib, 1)) {
-			printf("FAILED.\n");
+			device_printf_n(sc->aac_dev, "FAILED.\n");
 		} else {
-			printf("done.\n");
+			device_printf_n(sc->aac_dev, "done.\n");
 		}
 	}
 #endif

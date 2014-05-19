@@ -674,7 +674,9 @@ aac_container_special_command(struct cam_sim *sim, union ccb *ccb,
 
 			if (aacraid_wait_command(cm) != 0 ||
 				*(u_int32_t *)&fib->data[0] != 0) {
-				printf("Power Management: Error start/stop container %d\n", 
+				device_printf_n(sc->aac_dev,
+				    "Power Management: "
+				    "Error start/stop container %d\n", 
 				co->co_mntobj.ObjectId);
 			}
 			aacraid_release_command(cm);

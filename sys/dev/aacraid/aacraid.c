@@ -836,9 +836,9 @@ aacraid_shutdown(device_t dev)
 	cc->ContainerId = 0xfffffffe;
 	if (aac_sync_fib(sc, ContainerCommand, 0, fib,
 	    sizeof(struct aac_close_command)))
-		printf("FAILED.\n");
+		device_printf_n(sc->aac_dev, "FAILED.\n");
 	else
-		printf("done\n");
+		device_printf_n(sc->aac_dev, "done\n");
 
 	AAC_ACCESS_DEVREG(sc, AAC_DISABLE_INTERRUPT);
 	aac_release_sync_fib(sc);
