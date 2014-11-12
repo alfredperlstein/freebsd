@@ -2831,6 +2831,8 @@ igb_setup_msix(struct adapter *adapter)
 {
 	device_t	dev = adapter->dev;
 	int		bar, want, queues, msgs, maxqueues;
+	int		n_queues;
+	char		queue_tune_path[sizeof("hw.igb.num_queues") + 12 /* string size of int */];
 
 	/* tuneable override */
 	if (igb_enable_msix == 0)
@@ -2858,8 +2860,19 @@ igb_setup_msix(struct adapter *adapter)
 		goto msi;
 	}
 
-	/* Figure out a reasonable auto config value */
-	queues = (mp_ncpus > (msgs-1)) ? (msgs-1) : mp_ncpus;
+	n_queues = 0;
+	snprintf(queue_tune_path, sizeof(queue_tune_path), "hw.igb.%d.num_queues", device_get_unit(dev));
+	/* try more specific tunable, then global, then finally default to boot time tunable if set. */
+	if (TUNABLE_INT_FETCH(queue_tune_path, &n_queues) != 0) {
+		device_printf(adapter->dev, "using specific tunable %s=%d", queue_tune_path, n_queues);
+	} else if (TUNABLE_INT_FETCH("hw.igb.num_queues", &n_queues) != 0) {
+		if (igb_num_queues != n_queues) {
+			device_printf(adapter->dev, "using global tunable hw.igb.num_queues=%d", n_queues);
+			igb_num_queues = n_queues;
+		}
+	} else {
+		n_queues = igb_num_queues;
+	}
 
 #ifdef	RSS
 	/* If we're doing RSS, clamp at the number of RSS buckets */
@@ -2867,10 +2880,12 @@ igb_setup_msix(struct adapter *adapter)
 		queues = rss_getnumbuckets();
 #endif
 
-
-	/* Manual override */
-	if (igb_num_queues != 0)
-		queues = igb_num_queues;
+	if (n_queues != 0) {
+		queues = n_queues;
+	} else {
+		/* Figure out a reasonable auto config value */
+		queues = (mp_ncpus > (msgs-1)) ? (msgs-1) : mp_ncpus;
+	}
 
 	/* Sanity check based on HW */
 	switch (adapter->hw.mac.type) {
@@ -2893,12 +2908,17 @@ igb_setup_msix(struct adapter *adapter)
 			maxqueues = 1;
 			break;
 	}
-	if (queues > maxqueues)
+	if (queues > maxqueues) {
+		device_printf(adapter->dev, "requested %d queues, but max for this adapter is %d\n",
+		    queues, maxqueues);
 		queues = maxqueues;
-
-	/* Manual override */
-	if (igb_num_queues != 0)
-		queues = igb_num_queues;
+	} else if (queues == 0) {
+		queues = 1;
+	} else if (queues < 0) {
+		device_printf(adapter->dev, "requested %d queues, but min for this adapter is %d\n",
+		    queues, 1);
+		queues = 1;
+	}
 
 	/*
 	** One vector (RX/TX pair) per queue

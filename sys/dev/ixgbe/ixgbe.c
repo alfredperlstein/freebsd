@@ -2516,6 +2516,8 @@ ixgbe_setup_msix(struct adapter *adapter)
 {
 	device_t dev = adapter->dev;
 	int rid, want, queues, msgs;
+	int n_queues;
+	char queue_tune_path[sizeof("hw.ix.num_queues") + 12 /* string size of int */];
 
 	/* Override by tuneable */
 	if (ixgbe_enable_msix == 0)
@@ -2548,14 +2550,29 @@ ixgbe_setup_msix(struct adapter *adapter)
 		queues = rss_getnumbuckets();
 #endif
 
-	if (ixgbe_num_queues != 0)
-		queues = ixgbe_num_queues;
+	snprintf(queue_tune_path, sizeof(queue_tune_path), "hw.ix.%d.num_queues", device_get_unit(dev));
+	/* try more specific tunable, then global, then finally default to boot time tunable if set. */
+	if (TUNABLE_INT_FETCH(queue_tune_path, &n_queues) != 0) {
+		device_printf(adapter->dev, "using specific tunable %s=%d", queue_tune_path, n_queues);
+	} else if (TUNABLE_INT_FETCH("hw.ix.num_queues", &n_queues) != 0) {
+		if (ixgbe_num_queues != n_queues) {
+			device_printf(adapter->dev, "using global tunable hw.ix.num_queues=%d", n_queues);
+			ixgbe_num_queues = n_queues;
+		}
+	} else {
+		n_queues = ixgbe_num_queues;
+	}
+
+	if (n_queues < 0) {
+		device_printf(adapter->dev, "tunable < 0, resetting to default");
+		n_queues = 0;
+	}
+
+	if (n_queues != 0)
+		queues = n_queues;
 	/* Set max queues to 8 when autoconfiguring */
 	else if ((ixgbe_num_queues == 0) && (queues > 8))
 		queues = 8;
-
-	/* reflect correct sysctl value */
-	ixgbe_num_queues = queues;
 
 	/*
 	** Want one vector (RX/TX pair) per queue
