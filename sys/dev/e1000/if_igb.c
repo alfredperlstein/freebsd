@@ -2832,7 +2832,6 @@ igb_setup_msix(struct adapter *adapter)
 	device_t	dev = adapter->dev;
 	int		bar, want, queues, msgs, maxqueues;
 	int		n_queues;
-	char		queue_tune_path[sizeof("hw.igb.num_queues") + 12 /* string size of int */];
 
 	/* tuneable override */
 	if (igb_enable_msix == 0)
@@ -2861,13 +2860,12 @@ igb_setup_msix(struct adapter *adapter)
 	}
 
 	n_queues = 0;
-	snprintf(queue_tune_path, sizeof(queue_tune_path), "hw.igb.%d.num_queues", device_get_unit(dev));
 	/* try more specific tunable, then global, then finally default to boot time tunable if set. */
-	if (TUNABLE_INT_FETCH(queue_tune_path, &n_queues) != 0) {
-		device_printf(adapter->dev, "using specific tunable %s=%d", queue_tune_path, n_queues);
+	if (device_getenv_int(dev, "num_queues", &n_queues) != 0) {
+		device_printf(dev, "using specific tunable num_queues=%d", n_queues);
 	} else if (TUNABLE_INT_FETCH("hw.igb.num_queues", &n_queues) != 0) {
 		if (igb_num_queues != n_queues) {
-			device_printf(adapter->dev, "using global tunable hw.igb.num_queues=%d", n_queues);
+			device_printf(dev, "using global tunable hw.igb.num_queues=%d", n_queues);
 			igb_num_queues = n_queues;
 		}
 	} else {
