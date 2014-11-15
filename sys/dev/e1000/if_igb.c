@@ -188,6 +188,7 @@ static char *igb_strings[] = {
 /*********************************************************************
  *  Function prototypes
  *********************************************************************/
+static int	igb_per_unit_num_queues(SYSCTL_HANDLER_ARGS);
 static int	igb_probe(device_t);
 static int	igb_attach(device_t);
 static int	igb_detach(device_t);
@@ -492,6 +493,11 @@ igb_attach(device_t dev)
 	    SYSCTL_CHILDREN(device_get_sysctl_tree(dev)),
 	    OID_AUTO, "nvm", CTLTYPE_INT|CTLFLAG_RW, adapter, 0,
 	    igb_sysctl_nvm_info, "I", "NVM Information");
+
+        SYSCTL_ADD_PROC(device_get_sysctl_ctx(dev),
+                        SYSCTL_CHILDREN(device_get_sysctl_tree(dev)),
+			OID_AUTO, "num_queues", CTLTYPE_INT | CTLFLAG_RD,
+			adapter, 0, igb_per_unit_num_queues, "I", "Number of Queues");
 
 	igb_set_sysctl_value(adapter, "enable_aim",
 	    "Interrupt Moderation", &adapter->enable_aim,
@@ -6402,3 +6408,14 @@ igb_sysctl_eee(SYSCTL_HANDLER_ARGS)
 	IGB_CORE_UNLOCK(adapter);
 	return (0);
 }
+
+static int
+igb_per_unit_num_queues(SYSCTL_HANDLER_ARGS)
+{
+	struct adapter          *adapter;
+
+	adapter = (struct adapter *) arg1;
+
+	return sysctl_handle_int(oidp, &adapter->num_queues, 0, req);
+}
+

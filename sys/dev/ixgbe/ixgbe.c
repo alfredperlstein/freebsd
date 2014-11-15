@@ -103,6 +103,7 @@ static char    *ixgbe_strings[] = {
 /*********************************************************************
  *  Function prototypes
  *********************************************************************/
+static int	ixgbe_per_unit_num_queues(SYSCTL_HANDLER_ARGS);
 static int      ixgbe_probe(device_t);
 static int      ixgbe_attach(device_t);
 static int      ixgbe_detach(device_t);
@@ -472,6 +473,11 @@ ixgbe_attach(device_t dev)
 			SYSCTL_CHILDREN(device_get_sysctl_tree(dev)),
 			OID_AUTO, "advertise_speed", CTLTYPE_INT | CTLFLAG_RW,
 			adapter, 0, ixgbe_set_advertise, "I", "Link Speed");
+
+	SYSCTL_ADD_PROC(device_get_sysctl_ctx(dev),
+			SYSCTL_CHILDREN(device_get_sysctl_tree(dev)),
+			OID_AUTO, "num_queues", CTLTYPE_INT | CTLFLAG_RD,
+			adapter, 0, ixgbe_per_unit_num_queues, "I", "Number of Queues");
 
 	SYSCTL_ADD_PROC(device_get_sysctl_ctx(dev),
 			SYSCTL_CHILDREN(device_get_sysctl_tree(dev)),
@@ -5956,6 +5962,16 @@ ixgbe_set_flowcntl(SYSCTL_HANDLER_ARGS)
 	adapter->hw.fc.disable_fc_autoneg = TRUE;
 	ixgbe_fc_enable(&adapter->hw);
 	return error;
+}
+
+static int
+ixgbe_per_unit_num_queues(SYSCTL_HANDLER_ARGS)
+{
+	struct adapter		*adapter;
+
+	adapter = (struct adapter *) arg1;
+
+	return sysctl_handle_int(oidp, &adapter->num_queues, 0, req);
 }
 
 /*
