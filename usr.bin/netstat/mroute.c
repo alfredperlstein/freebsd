@@ -260,7 +260,7 @@ mroutepr()
 	if (live) {
 		if (sysctlbyname("net.inet.ip.viftable", viftable, &len, NULL,
 		    0) < 0) {
-			warn("sysctl: net.inet.ip.viftable");
+			xo_warn("sysctl: net.inet.ip.viftable");
 			return;
 		}
 	} else {
@@ -270,7 +270,7 @@ mroutepr()
 		pviftbl = mrl[N_VIFTABLE].n_value;
 
 		if (pmfchashtbl == 0 || pmfctablesize == 0 || pviftbl == 0) {
-			fprintf(stderr, "No IPv4 MROUTING kernel support.\n");
+			xo_warnx("No IPv4 MROUTING kernel support.");
 			return;
 		}
 
@@ -411,34 +411,49 @@ mrt_stats()
 	if (live) {
 		if (sysctlbyname("net.inet.ip.mrtstat", &mrtstat, &len, NULL,
 		    0) < 0) {
-			warn("sysctl: net.inet.ip.mrtstat failed.");
+			xo_warn("sysctl: net.inet.ip.mrtstat failed.");
 			return;
 		}
 	} else
 		kread_counters(mstaddr, &mrtstat, len);
 
-	printf("IPv4 multicast forwarding:\n");
+	xo_emit("{T:IPv4 multicast forwarding}:\n");
 
 #define	p(f, m) if (mrtstat.f || sflag <= 1) \
-	printf(m, (uintmax_t)mrtstat.f, plural(mrtstat.f))
+	xo_emit(m, (uintmax_t)mrtstat.f, plural(mrtstat.f))
 #define	p2(f, m) if (mrtstat.f || sflag <= 1) \
-	printf(m, (uintmax_t)mrtstat.f, plurales(mrtstat.f))
+	xo_emit(m, (uintmax_t)mrtstat.f, plurales(mrtstat.f))
 
-	p(mrts_mfc_lookups, "\t%ju multicast forwarding cache lookup%s\n");
-	p2(mrts_mfc_misses, "\t%ju multicast forwarding cache miss%s\n");
-	p(mrts_upcalls, "\t%ju upcall%s to multicast routing daemon\n");
-	p(mrts_upq_ovflw, "\t%ju upcall queue overflow%s\n");
+	xo_open_container("multicast-statistics");
+
+	p(mrts_mfc_lookups, "\t{:cache-lookups/%ju} "
+	  "{N:/multicast forwarding cache lookup%s}\n");
+	p2(mrts_mfc_misses, "\t{:cache-misses/%ju} "
+	   "{N:/multicast forwarding cache miss%s}\n");
+	p(mrts_upcalls, "\t{:upcalls-total/%ju} "
+	  "{N:/upcall%s to multicast routing daemon}\n");
+	p(mrts_upq_ovflw, "\t{:upcall-overflows/%ju} "
+	  "{N:/upcall queue overflow%s}\n");
 	p(mrts_upq_sockfull,
-	    "\t%ju upcall%s dropped due to full socket buffer\n");
-	p(mrts_cache_cleanups, "\t%ju cache cleanup%s\n");
-	p(mrts_no_route, "\t%ju datagram%s with no route for origin\n");
-	p(mrts_bad_tunnel, "\t%ju datagram%s arrived with bad tunneling\n");
-	p(mrts_cant_tunnel, "\t%ju datagram%s could not be tunneled\n");
-	p(mrts_wrong_if, "\t%ju datagram%s arrived on wrong interface\n");
-	p(mrts_drop_sel, "\t%ju datagram%s selectively dropped\n");
-	p(mrts_q_overflow, "\t%ju datagram%s dropped due to queue overflow\n");
-	p(mrts_pkt2large, "\t%ju datagram%s dropped for being too large\n");
-
+	    "\t{:upcalls-dropped-full-buffer/%ju} "
+	  "{N:/upcall%s dropped due to full socket buffer}\n");
+	p(mrts_cache_cleanups, "\t{:cache-cleanups/%ju} "
+	  "{N:/cache cleanup%s}\n");
+	p(mrts_no_route, "\t{:dropped-no-origin/%ju} "
+	  "{N:/datagram%s with no route for origin}\n");
+	p(mrts_bad_tunnel, "\t{:dropped-bad-tunnel/%ju} "
+	  "{N:/datagram%s arrived with bad tunneling}\n");
+	p(mrts_cant_tunnel, "\t{:dropped-could-not-tunnel/%ju} "
+	  "{N:/datagram%s could not be tunneled}\n");
+	p(mrts_wrong_if, "\t{:dropped-wrong-incoming-interface/%ju} "
+	  "{N:/datagram%s arrived on wrong interface}\n");
+	p(mrts_drop_sel, "\t{:dropped-selectively/%ju} "
+	  "{N:/datagram%s selectively dropped}\n");
+	p(mrts_q_overflow, "\t{:dropped-queue-overflow/%ju} "
+	  "{N:/datagram%s dropped due to queue overflow}\n");
+	p(mrts_pkt2large, "\t{:dropped-too-large/%ju} "
+	  "{N:/datagram%s dropped for being too large}\n");
+ 
 #undef	p2
 #undef	p
 }
