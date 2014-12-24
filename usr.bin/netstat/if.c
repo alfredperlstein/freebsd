@@ -304,14 +304,15 @@ intpr(int interval, void (*pfunc)(char *), int af)
 
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
 		bool network = false, link = false;
+		char *name;
 
 		if (interface != NULL && strcmp(ifa->ifa_name, interface) != 0)
 			continue;
 
-		if (pfunc) {
-			char *name;
+		name = ifa->ifa_name;
 
-			name = ifa->ifa_name;
+		if (pfunc) {
+
 			(*pfunc)(name);
 
 			/*
@@ -335,7 +336,7 @@ intpr(int interval, void (*pfunc)(char *), int af)
 			xo_emit("{tk:name/%-5.5s}", name);
 
 #define IFA_MTU(ifa)	(((struct if_data *)(ifa)->ifa_data)->ifi_mtu)
-		show_stat("lu", 6, IFA_MTU(ifa), IFA_MTU(ifa));
+		show_stat("lu", 6, "mtu", IFA_MTU(ifa), IFA_MTU(ifa));
 #undef IFA_MTU
 
 		switch (ifa->ifa_addr->sa_family) {
@@ -380,7 +381,7 @@ intpr(int interval, void (*pfunc)(char *), int af)
 		    {
 			struct sockaddr_dl *sdl;
 			char *cp, linknum[10];
-			int n, m;
+			int n;
 
 			sdl = (struct sockaddr_dl *)ifa->ifa_addr;
 			cp = (char *)LLADDR(sdl);
@@ -457,7 +458,7 @@ intpr(int interval, void (*pfunc)(char *), int af)
 				    sizeof(addr_buf), 0, 0, NI_NUMERICHOST);
 				    /* XXX: "(refs: {:references/%d})\n", */
 				xo_emit(
-				    "{P:/%*s }{t:address/%-19.19s}"
+				    "{P:/%*s }{t:address/%-19.19s}",
 				    Wflag ? 27 : 25, "", addr_buf);
 				break;
 #endif /* INET6 */
@@ -482,11 +483,11 @@ intpr(int interval, void (*pfunc)(char *), int af)
 				    Wflag ? 27 : 25, "", fmt);
 				if (ifma->ifma_addr->sa_family == AF_LINK) {
 					xo_emit(" {:received-packets/%8lu}",
-							imcasts);
+							IFA_STAT(imcasts));
 					xo_emit("{P:/%*s}",
  					    bflag ? 17 : 6, "");
 					xo_emit(" {:sent-packets/%8lu}",
-							omcasts);
+							IFA_STAT(omcasts));
  				}
 				xo_emit("\n");
 			}
