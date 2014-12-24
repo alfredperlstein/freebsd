@@ -64,6 +64,7 @@ __FBSDID("$FreeBSD$");
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <sysexits.h>
 #include <unistd.h>
@@ -556,7 +557,8 @@ p_rtable_sysctl(int fibnum, int af)
 	char *buf, *next, *lim;
 	struct rt_msghdr *rtm;
 	struct sockaddr *sa;
-	int fam = 0, ifindex = 0, size;
+	int fam = AF_UNSPEC, ifindex = 0, size;
+	int need_table_close = false;
 
 	struct ifaddrs *ifap, *ifa;
 	struct sockaddr_dl *sdl;
@@ -615,23 +617,29 @@ p_rtable_sysctl(int fibnum, int af)
 		rtm = (struct rt_msghdr *)next;
 		if (rtm->rtm_version != RTM_VERSION)
 			continue;
-		xo_open_container("route-table");
 		/*
 		 * Peek inside header to determine AF
 		 */
 		sa = (struct sockaddr *)(rtm + 1);
 		/* Only print family first time. */
 		if (fam != sa->sa_family) {
+			if (need_table_close) {
+			    xo_close_list("rt-entry");
+			    xo_close_container("route-table");
+			}
+			xo_open_container("route-table");
+			xo_open_list("rt-entry");
+			need_table_close = true;
+
 			fam = sa->sa_family;
 			size_cols(fam, NULL);
 			pr_family(fam);
 			pr_rthdr(fam);
 		}
-		xo_open_list("rt-entry");
 		p_rtentry_sysctl("rt-entry", rtm);
-		xo_close_list("rt-entry");
-		xo_close_container("route-table");
 	}
+	if (need_table_close)
+		xo_close_container("route-table");
 	free(buf);
 }
 
@@ -710,13 +718,27 @@ p_sockaddr(const char *name, struct sockaddr *sa, struct sockaddr *mask,
 		snprintf(buf, sizeof(buf), "{:%s/%%s} ", name);
 		xo_emit(buf, cp);
 	} else {
+#if 0
 		if (numeric_addr) {
-			snprintf(buf, sizeof(buf), "{:%s/%%-*s} ", name);
-			xo_emit(buf, width, cp);
+			snprintf(buf, sizeof(buf), "{:%s/%%s}", name);
+			//fprintf(stderr, "fmt1: %s %s\n", buf, cp);
+			xo_emit(buf, cp);
 		} else {
-			snprintf(buf, sizeof(buf), "{:%s/%%-*..*s} ", name);
-			xo_emit(buf, width, width, cp);
+			snprintf(buf, sizeof(buf), "{:%s/%%-.*s}", name);
+			//fprintf(stderr, "fmt2: %s %s\n", buf, cp);
+			xo_emit(buf, width, cp);
 		}			
+#else
+		if (numeric_addr) {
+			snprintf(buf, sizeof(buf), "{[:/%d}{:%s/%%s}{:]}", -width, name);
+			fprintf(stderr, "** fmt1: %s %s **\n", buf, cp);
+			xo_emit(buf, cp);
+		} else {
+			snprintf(buf, sizeof(buf), "{[:/%d}{:%s/%%-.*s}{:]}", -width, name);
+			fprintf(stderr, "** fmt2: %s %s **\n", buf, cp);
+			xo_emit(buf, width, cp);
+		}			
+#endif
 	}
 }
 
