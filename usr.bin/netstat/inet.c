@@ -674,7 +674,6 @@ tcp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 	  "{N:/data packet%s unnecessarily retransmitted}\n");
 	p(tcps_mturesent, "\t\t{:sent-resends-by-mtu-discovery/%ju} "
 	  "{N:/resend%s initiated by MTU discovery}\n");
-	    "\t\t%ju data packet%s unnecessarily retransmitted\n");
 	p2a(tcps_sndacks, tcps_delack,
 	    "\t\t{:sent-ack-only-packets/%ju} "
 	    "{N:/ack-only packet%s/} ({:sent-packets-delayed/%ju} {N:delayed})\n");
