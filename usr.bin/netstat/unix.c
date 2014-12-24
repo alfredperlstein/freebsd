@@ -309,9 +309,11 @@ unixdomainpr(struct xunpcb *xunp, struct xsocket *so)
 	if (Lflag) {
 		snprintf(buf1, 15, "%d/%d/%d", so->so_qlen,
 		    so->so_incqlen, so->so_qlimit);
-		printf("unix  %-14.14s", buf1);
+		xo_emit("unix  {d:socket/%-14.14s}{e:queue-length/%d}"
+			"{e:incomplete-queue-length/%d}{e:queue-limit/%d}",
+			buf1, so->so_qlen, so->so_incqlen, so->so_qlimit);
 	} else {
-		printf("%8lx %-6.6s %6u %6u %8lx %8lx %8lx %8lx",
+		xo_emit(format[fmt],
 		    (long)so->so_pcb, socktype[so->so_type], so->so_rcv.sb_cc,
 		    so->so_snd.sb_cc, (long)unp->unp_vnode,
 		    (long)unp->unp_conn,
@@ -319,8 +321,8 @@ unixdomainpr(struct xunpcb *xunp, struct xsocket *so)
 		    (long)LIST_NEXT(unp, unp_reflink));
 	}
 	if (sa)
-		printf(" %.*s",
+		xo_emit(" {:path/%.*s}",
 		    (int)(sa->sun_len - offsetof(struct sockaddr_un, sun_path)),
 		    sa->sun_path);
-	putchar('\n');
+	xo_emit("\n");
 }
