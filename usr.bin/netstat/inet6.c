@@ -623,51 +623,73 @@ ip6_ifstats(char *ifname)
 	struct in6_ifreq ifr;
 	int s;
 #define	p(f, m) if (ifr.ifr_ifru.ifru_stat.f || sflag <= 1) \
-    printf(m, (uintmax_t)ifr.ifr_ifru.ifru_stat.f, plural(ifr.ifr_ifru.ifru_stat.f))
-#define	p_5(f, m) if (ifr.ifr_ifru.ifru_stat.f || sflag <= 1) \
-    printf(m, (uintmax_t)ip6stat.f)
+    xo_emit(m, (uintmax_t)ifr.ifr_ifru.ifru_stat.f, plural(ifr.ifr_ifru.ifru_stat.f))
 
 	if ((s = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
-		perror("Warning: socket(AF_INET6)");
+		xo_warn("Warning: socket(AF_INET6)");
 		return;
 	}
 
 	strcpy(ifr.ifr_name, ifname);
 	if (ioctl(s, SIOCGIFSTAT_IN6, (char *)&ifr) < 0) {
 		if (errno != EPFNOSUPPORT)
-			perror("Warning: ioctl(SIOCGIFSTAT_IN6)");
+			xo_warn("Warning: ioctl(SIOCGIFSTAT_IN6)");
 		goto end;
 	}
 
-	printf("ip6 on %s:\n", ifr.ifr_name);
-	p(ifs6_in_receive, "\t%ju total input datagram%s\n");
-	p(ifs6_in_hdrerr, "\t%ju datagram%s with invalid header received\n");
-	p(ifs6_in_toobig, "\t%ju datagram%s exceeded MTU received\n");
-	p(ifs6_in_noroute, "\t%ju datagram%s with no route received\n");
-	p(ifs6_in_addrerr, "\t%ju datagram%s with invalid dst received\n");
-	p(ifs6_in_protounknown, "\t%ju datagram%s with unknown proto received\n");
-	p(ifs6_in_truncated, "\t%ju truncated datagram%s received\n");
-	p(ifs6_in_discard, "\t%ju input datagram%s discarded\n");
-	p(ifs6_in_deliver,
-	  "\t%ju datagram%s delivered to an upper layer protocol\n");
-	p(ifs6_out_forward, "\t%ju datagram%s forwarded to this interface\n");
-	p(ifs6_out_request,
-	  "\t%ju datagram%s sent from an upper layer protocol\n");
-	p(ifs6_out_discard, "\t%ju total discarded output datagram%s\n");
-	p(ifs6_out_fragok, "\t%ju output datagram%s fragmented\n");
-	p(ifs6_out_fragfail, "\t%ju output datagram%s failed on fragment\n");
-	p(ifs6_out_fragcreat, "\t%ju output datagram%s succeeded on fragment\n");
-	p(ifs6_reass_reqd, "\t%ju incoming datagram%s fragmented\n");
-	p(ifs6_reass_ok, "\t%ju datagram%s reassembled\n");
-	p(ifs6_reass_fail, "\t%ju datagram%s failed on reassembly\n");
-	p(ifs6_in_mcast, "\t%ju multicast datagram%s received\n");
-	p(ifs6_out_mcast, "\t%ju multicast datagram%s sent\n");
+	xo_emit("{T:/ip6 on %s}:\n", ifr.ifr_name);
 
-  end:
-	close(s);
+	xo_open_instance("ip6-interface-statistics");
+	xo_emit("{ke:name/%s}", ifr.ifr_name);
 
+	p(ifs6_in_receive, "\t{:received-packets/%ju} "
+	  "{N:/total input datagram%s}\n");
+	p(ifs6_in_hdrerr, "\t{:dropped-invalid-header/%ju} "
+	  "{N:/datagram%s with invalid header received}\n");
+	p(ifs6_in_toobig, "\t{:dropped-mtu-exceeded/%ju} "
+	  "{N:/datagram%s exceeded MTU received}\n");
+	p(ifs6_in_noroute, "\t{:dropped-no-route/%ju} "
+	  "{N:/datagram%s with no route received}\n");
+	p(ifs6_in_addrerr, "\t{:dropped-invalid-destination/%ju} "
+	  "{N:/datagram%s with invalid dst received}\n");
+	p(ifs6_in_protounknown, "\t{:dropped-unknown-protocol/%ju} "
+	  "{N:/datagram%s with unknown proto received}\n");
+	p(ifs6_in_truncated, "\t{:dropped-truncated/%ju} "
+	  "{N:/truncated datagram%s received}\n");
+	p(ifs6_in_discard, "\t{:dropped-discarded/%ju} "
+	  "{N:/input datagram%s discarded}\n");
+ 	p(ifs6_in_deliver,
+	  "\t{:received-valid-packets/%ju} "
+	  "{N:/datagram%s delivered to an upper layer protocol}\n");
+	p(ifs6_out_forward, "\t{:sent-forwarded/%ju} "
+	  "{N:/datagram%s forwarded to this interface}\n");
+ 	p(ifs6_out_request,
+	  "\t{:sent-packets/%ju} "
+	  "{N:/datagram%s sent from an upper layer protocol}\n");
+	p(ifs6_out_discard, "\t{:discard-packets/%ju} "
+	  "{N:/total discarded output datagram%s}\n");
+	p(ifs6_out_fragok, "\t{:discard-fragments/%ju} "
+	  "{N:/output datagram%s fragmented}\n");
+	p(ifs6_out_fragfail, "\t{:fragments-failed/%ju} "
+	  "{N:/output datagram%s failed on fragment}\n");
+	p(ifs6_out_fragcreat, "\t{:fragments-created/%ju} "
+	  "{N:/output datagram%s succeeded on fragment}\n");
+	p(ifs6_reass_reqd, "\t{:reassembly-required/%ju} "
+	  "{N:/incoming datagram%s fragmented}\n");
+	p(ifs6_reass_ok, "\t{:reassembled-packets/%ju} "
+	  "{N:/datagram%s reassembled}\n");
+	p(ifs6_reass_fail, "\t{:reassembly-failed/%ju} "
+	  "{N:/datagram%s failed on reassembly}\n");
+	p(ifs6_in_mcast, "\t{:received-multicast/%ju} "
+	  "{N:/multicast datagram%s received}\n");
+	p(ifs6_out_mcast, "\t{:sent-multicast/%ju} "
+	  "{N:/multicast datagram%s sent}\n");
+ 
+   end:
+	xo_close_instance("ip6-interface-statistics");
+ 	close(s);
+ 
 #undef p
-#undef p_5
 }
 
 static	const char *icmp6names[] = {
@@ -1072,60 +1094,98 @@ icmp6_ifstats(char *ifname)
 	struct in6_ifreq ifr;
 	int s;
 #define	p(f, m) if (ifr.ifr_ifru.ifru_icmp6stat.f || sflag <= 1) \
-    printf(m, (uintmax_t)ifr.ifr_ifru.ifru_icmp6stat.f, plural(ifr.ifr_ifru.ifru_icmp6stat.f))
+    xo_emit(m, (uintmax_t)ifr.ifr_ifru.ifru_icmp6stat.f, plural(ifr.ifr_ifru.ifru_icmp6stat.f))
 #define	p2(f, m) if (ifr.ifr_ifru.ifru_icmp6stat.f || sflag <= 1) \
-    printf(m, (uintmax_t)ifr.ifr_ifru.ifru_icmp6stat.f, pluralies(ifr.ifr_ifru.ifru_icmp6stat.f))
+    xo_emit(m, (uintmax_t)ifr.ifr_ifru.ifru_icmp6stat.f, pluralies(ifr.ifr_ifru.ifru_icmp6stat.f))
 
 	if ((s = socket(AF_INET6, SOCK_DGRAM, 0)) < 0) {
-		perror("Warning: socket(AF_INET6)");
+		xo_warn("Warning: socket(AF_INET6)");
 		return;
 	}
 
 	strcpy(ifr.ifr_name, ifname);
 	if (ioctl(s, SIOCGIFSTAT_ICMP6, (char *)&ifr) < 0) {
 		if (errno != EPFNOSUPPORT)
-			perror("Warning: ioctl(SIOCGIFSTAT_ICMP6)");
+			xo_warn("Warning: ioctl(SIOCGIFSTAT_ICMP6)");
 		goto end;
 	}
 
-	printf("icmp6 on %s:\n", ifr.ifr_name);
-	p(ifs6_in_msg, "\t%ju total input message%s\n");
-	p(ifs6_in_error, "\t%ju total input error message%s\n");
-	p(ifs6_in_dstunreach, "\t%ju input destination unreachable error%s\n");
-	p(ifs6_in_adminprohib, "\t%ju input administratively prohibited error%s\n");
-	p(ifs6_in_timeexceed, "\t%ju input time exceeded error%s\n");
-	p(ifs6_in_paramprob, "\t%ju input parameter problem error%s\n");
-	p(ifs6_in_pkttoobig, "\t%ju input packet too big error%s\n");
-	p(ifs6_in_echo, "\t%ju input echo request%s\n");
-	p2(ifs6_in_echoreply, "\t%ju input echo repl%s\n");
-	p(ifs6_in_routersolicit, "\t%ju input router solicitation%s\n");
-	p(ifs6_in_routeradvert, "\t%ju input router advertisement%s\n");
-	p(ifs6_in_neighborsolicit, "\t%ju input neighbor solicitation%s\n");
-	p(ifs6_in_neighboradvert, "\t%ju input neighbor advertisement%s\n");
-	p(ifs6_in_redirect, "\t%ju input redirect%s\n");
-	p2(ifs6_in_mldquery, "\t%ju input MLD quer%s\n");
-	p(ifs6_in_mldreport, "\t%ju input MLD report%s\n");
-	p(ifs6_in_mlddone, "\t%ju input MLD done%s\n");
+	xo_emit("{T:/icmp6 on %s}:\n", ifr.ifr_name);
 
-	p(ifs6_out_msg, "\t%ju total output message%s\n");
-	p(ifs6_out_error, "\t%ju total output error message%s\n");
-	p(ifs6_out_dstunreach, "\t%ju output destination unreachable error%s\n");
-	p(ifs6_out_adminprohib, "\t%ju output administratively prohibited error%s\n");
-	p(ifs6_out_timeexceed, "\t%ju output time exceeded error%s\n");
-	p(ifs6_out_paramprob, "\t%ju output parameter problem error%s\n");
-	p(ifs6_out_pkttoobig, "\t%ju output packet too big error%s\n");
-	p(ifs6_out_echo, "\t%ju output echo request%s\n");
-	p2(ifs6_out_echoreply, "\t%ju output echo repl%s\n");
-	p(ifs6_out_routersolicit, "\t%ju output router solicitation%s\n");
-	p(ifs6_out_routeradvert, "\t%ju output router advertisement%s\n");
-	p(ifs6_out_neighborsolicit, "\t%ju output neighbor solicitation%s\n");
-	p(ifs6_out_neighboradvert, "\t%ju output neighbor advertisement%s\n");
-	p(ifs6_out_redirect, "\t%ju output redirect%s\n");
-	p2(ifs6_out_mldquery, "\t%ju output MLD quer%s\n");
-	p(ifs6_out_mldreport, "\t%ju output MLD report%s\n");
-	p(ifs6_out_mlddone, "\t%ju output MLD done%s\n");
+	xo_open_instance("icmp6-interface-statistics");
+	xo_emit("{ke:name/%s}", ifr.ifr_name);
+	p(ifs6_in_msg, "\t{:received-packets/%ju} "
+	  "{N:/total input message%s}\n");
+	p(ifs6_in_error, "\t{:received-errors/%ju} "
+	  "{N:/total input error message%s}\n");
+	p(ifs6_in_dstunreach, "\t{:received-destination-unreachable/%ju} "
+	  "{N:/input destination unreachable error%s}\n");
+	p(ifs6_in_adminprohib, "\t{:received-admin-prohibited/%ju} "
+	  "{N:/input administratively prohibited error%s}\n");
+	p(ifs6_in_timeexceed, "\t{:received-time-exceeded/%ju} "
+	  "{N:/input time exceeded error%s}\n");
+	p(ifs6_in_paramprob, "\t{:received-bad-parameter/%ju} "
+	  "{N:/input parameter problem error%s}\n");
+	p(ifs6_in_pkttoobig, "\t{:received-packet-too-big/%ju} "
+	  "{N:/input packet too big error%s}\n");
+	p(ifs6_in_echo, "\t{:received-echo-requests/%ju} "
+	  "{N:/input echo request%s}\n");
+	p2(ifs6_in_echoreply, "\t{:received-echo-replies/%ju} "
+	   "{N:/input echo repl%s}\n");
+	p(ifs6_in_routersolicit, "\t{:received-router-solicitation/%ju} "
+	  "{N:/input router solicitation%s}\n");
+	p(ifs6_in_routeradvert, "\t{:received-router-advertisement/%ju} "
+	  "{N:/input router advertisement%s}\n");
+	p(ifs6_in_neighborsolicit, "\t{:received-neighbor-solicitation/%ju} "
+	  "{N:/input neighbor solicitation%s}\n");
+	p(ifs6_in_neighboradvert, "\t{:received-neighbor-advertisement/%ju} "
+	  "{N:/input neighbor advertisement%s}\n");
+	p(ifs6_in_redirect, "\t{received-redirects/%ju} "
+	  "{N:/input redirect%s}\n");
+	p2(ifs6_in_mldquery, "\t{:received-mld-queries/%ju} "
+	   "{N:/input MLD quer%s}\n");
+	p(ifs6_in_mldreport, "\t{:received-mld-reports/%ju} "
+	  "{N:/input MLD report%s}\n");
+	p(ifs6_in_mlddone, "\t{:received-mld-done/%ju} "
+	  "{N:/input MLD done%s}\n");
 
-  end:
+	p(ifs6_out_msg, "\t{:sent-packets/%ju} "
+	  "{N:/total output message%s}\n");
+	p(ifs6_out_error, "\t{:sent-errors/%ju} "
+	  "{N:/total output error message%s}\n");
+	p(ifs6_out_dstunreach, "\t{:sent-destination-unreachable/%ju} "
+	  "{N:/output destination unreachable error%s}\n");
+	p(ifs6_out_adminprohib, "\t{:sent-admin-prohibited/%ju} "
+	  "{N:/output administratively prohibited error%s}\n");
+	p(ifs6_out_timeexceed, "\t{:sent-time-exceeded/%ju} "
+	  "{N:/output time exceeded error%s}\n");
+	p(ifs6_out_paramprob, "\t{:sent-bad-parameter/%ju} "
+	  "{N:/output parameter problem error%s}\n");
+	p(ifs6_out_pkttoobig, "\t{:sent-packet-too-big/%ju} "
+	  "{N:/output packet too big error%s}\n");
+	p(ifs6_out_echo, "\t{:sent-echo-requests/%ju} "
+	  "{N:/output echo request%s}\n");
+	p2(ifs6_out_echoreply, "\t{:sent-echo-replies/%ju} "
+	   "{N:/output echo repl%s}\n");
+	p(ifs6_out_routersolicit, "\t{:sent-router-solicitation/%ju} "
+	  "{N:/output router solicitation%s}\n");
+	p(ifs6_out_routeradvert, "\t{:sent-router-advertisement/%ju} "
+	  "{N:/output router advertisement%s}\n");
+	p(ifs6_out_neighborsolicit, "\t{:sent-neighbor-solicitation/%ju} "
+	  "{N:/output neighbor solicitation%s}\n");
+	p(ifs6_out_neighboradvert, "\t{:sent-neighbor-advertisement/%ju} "
+	  "{N:/output neighbor advertisement%s}\n");
+	p(ifs6_out_redirect, "\t{:sent-redirects/%ju} "
+	  "{N:/output redirect%s}\n");
+	p2(ifs6_out_mldquery, "\t{:sent-mld-queries/%ju} "
+	   "{N:/output MLD quer%s}\n");
+	p(ifs6_out_mldreport, "\t{:sent-mld-reports/%ju} "
+	  "{N:/output MLD report%s}\n");
+	p(ifs6_out_mlddone, "\t{:sent-mld-dones/%ju} "
+	  "{N:/output MLD done%s}\n");
+ 
+end:
+	xo_close_instance("icmp6-interface-statistics");
 	close(s);
 #undef p
 }
