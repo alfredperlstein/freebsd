@@ -406,58 +406,67 @@ protopr(u_long off, const char *name, int af1, int proto)
 
 		if (first) {
 			if (!Lflag) {
-				printf("Active Internet connections");
+				xo_emit("Active Internet connections");
 				if (aflag)
-					printf(" (including servers)");
+					xo_emit(" (including servers)");
 			} else
-				printf(
+				xo_emit(
 	"Current listen queue sizes (qlen/incqlen/maxqlen)");
-			putchar('\n');
+			xo_emit("\n");
 			if (Aflag)
-				printf("%-*s ", 2 * (int)sizeof(void *), "Tcpcb");
+				xo_emit("{T:/%-*s} ", 2 * (int)sizeof(void *), "Tcpcb");
 			if (Lflag)
-				printf((Aflag && !Wflag) ?
-				    "%-5.5s %-14.14s %-18.18s" :
-				    "%-5.5s %-14.14s %-22.22s",
+				xo_emit((Aflag && !Wflag) ?
+				    "{T:/%-5.5s} {T:/%-14.14s} {T:/%-18.18s}" :
+				    "{T:/%-5.5s} {T:/%-14.14s} {T:/%-22.22s}",
 				    "Proto", "Listen", "Local Address");
 			else if (Tflag)
-				printf((Aflag && !Wflag) ?
-			    "%-5.5s %-6.6s %-6.6s %-6.6s %-18.18s %s" :
-			    "%-5.5s %-6.6s %-6.6s %-6.6s %-22.22s %s",
+				xo_emit((Aflag && !Wflag) ?
+    "{T:/%-5.5s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-18.18s} {T:/%s}" :
+    "{T:/%-5.5s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-22.22s} {T:/%s}",
 				    "Proto", "Rexmit", "OOORcv", "0-win",
 				    "Local Address", "Foreign Address");
 			else {
-				printf((Aflag && !Wflag) ? 
-				       "%-5.5s %-6.6s %-6.6s %-18.18s %-18.18s" :
-				       "%-5.5s %-6.6s %-6.6s %-22.22s %-22.22s",
+				xo_emit((Aflag && !Wflag) ? 
+       "{T:/%-5.5s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-18.18s} {T:/%-18.18s}" :
+       "{T:/%-5.5s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-22.22s} {T:/%-22.22s}",
 				       "Proto", "Recv-Q", "Send-Q",
 				       "Local Address", "Foreign Address");
 				if (!xflag && !Rflag)
-					printf(" (state)");
+					xo_emit(" (state)");
 			}
 			if (xflag) {
-				printf(" %-6.6s %-6.6s %-6.6s %-6.6s %-6.6s %-6.6s %-6.6s %-6.6s %-6.6s %-6.6s %-6.6s %-6.6s",
+				xo_emit(
+       " {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} "
+       "{T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} "
+       "{T:/%-6.6s} {T:/%-6.6s}",
 				       "R-MBUF", "S-MBUF", "R-CLUS", 
 				       "S-CLUS", "R-HIWA", "S-HIWA", 
 				       "R-LOWA", "S-LOWA", "R-BCNT", 
 				       "S-BCNT", "R-BMAX", "S-BMAX");
-				printf(" %7.7s %7.7s %7.7s %7.7s %7.7s %7.7s",
+				xo_emit(
+	" {T:/%7.7s} {T:/%7.7s} {T:/%7.7s} {T:/%7.7s} {T:/%7.7s} {T:/%7.7s}",
 				       "rexmt", "persist", "keep",
 				       "2msl", "delack", "rcvtime");
 			} else if (Rflag) {
-				printf ("  %8.8s %5.5s",
+				xo_emit("  {T:/%8.8s} {T:/%5.5s}",
 				    "flowid", "ftype");
 			}
-			putchar('\n');
+			xo_emit("\n");
 			first = 0;
 		}
 		if (Lflag && so->so_qlimit == 0)
 			continue;
+		xo_open_instance("socket");
 		if (Aflag) {
 			if (istcp)
-				printf("%*lx ", 2 * (int)sizeof(void *), (u_long)inp->inp_ppcb);
+				xo_emit("{:address/%*lx} ",
+					2 * (int)sizeof(void *),
+					(u_long)inp->inp_ppcb);
 			else
-				printf("%*lx ", 2 * (int)sizeof(void *), (u_long)so->so_pcb);
+				xo_emit("{:adddress/%*lx} ",
+					2 * (int)sizeof(void *),
+					(u_long)so->so_pcb);
 		}
 #ifdef INET6
 		if ((inp->inp_vflag & INP_IPV6) != 0)
@@ -468,79 +477,89 @@ protopr(u_long off, const char *name, int af1, int proto)
 		vchar = ((inp->inp_vflag & INP_IPV4) != 0) ?
 		    "4 " : "  ";
 		if (istcp && (tp->t_flags & TF_TOE) != 0)
-			printf("%-3.3s%-2.2s ", "toe", vchar);
+			xo_emit("{:protocol/%-3.3s%-2.2s/%s%s} ", "toe", vchar);
 		else
-			printf("%-3.3s%-2.2s ", name, vchar);
+			xo_emit("{:protocol/%-3.3s%-2.2s/%s%s} ", name, vchar);
 		if (Lflag) {
 			char buf1[15];
 
 			snprintf(buf1, 15, "%d/%d/%d", so->so_qlen,
 			    so->so_incqlen, so->so_qlimit);
-			printf("%-14.14s ", buf1);
+			xo_emit("{:listen-queue-sizes/%-14.14s} ", buf1);
 		} else if (Tflag) {
 			if (istcp)
-				printf("%6u %6u %6u ", tp->t_sndrexmitpack,
-				       tp->t_rcvoopack, tp->t_sndzerowin);
+				xo_emit(
+					"{:sent-retransmit-packets/%6u} "
+					"{:received-out-of-order-packets/%6u} "
+					"{:sent-zero-window/%6u} ",
+					tp->t_sndrexmitpack,
+					tp->t_rcvoopack, tp->t_sndzerowin);
 		} else {
-			printf("%6u %6u ",
-			    so->so_rcv.sb_cc, so->so_snd.sb_cc);
+			xo_emit("{:receive-bytes-waiting/%6u} "
+				"{:send-bytes-waiting/%6u} ",
+				so->so_rcv.sb_cc, so->so_snd.sb_cc);
 		}
 		if (numeric_port) {
 			if (inp->inp_vflag & INP_IPV4) {
-				inetprint(&inp->inp_laddr, (int)inp->inp_lport,
+				inetprint("local", &inp->inp_laddr, (int)inp->inp_lport,
 				    name, 1);
 				if (!Lflag)
-					inetprint(&inp->inp_faddr,
+					inetprint("remote", &inp->inp_faddr,
 					    (int)inp->inp_fport, name, 1);
 			}
 #ifdef INET6
 			else if (inp->inp_vflag & INP_IPV6) {
-				inet6print(&inp->in6p_laddr,
+				inet6print("local", &inp->in6p_laddr,
 				    (int)inp->inp_lport, name, 1);
 				if (!Lflag)
-					inet6print(&inp->in6p_faddr,
+					inet6print("remote", &inp->in6p_faddr,
 					    (int)inp->inp_fport, name, 1);
 			} /* else nothing printed now */
 #endif /* INET6 */
 		} else if (inp->inp_flags & INP_ANONPORT) {
 			if (inp->inp_vflag & INP_IPV4) {
-				inetprint(&inp->inp_laddr, (int)inp->inp_lport,
+				inetprint("local", &inp->inp_laddr, (int)inp->inp_lport,
 				    name, 1);
 				if (!Lflag)
-					inetprint(&inp->inp_faddr,
+					inetprint("remote", &inp->inp_faddr,
 					    (int)inp->inp_fport, name, 0);
 			}
 #ifdef INET6
 			else if (inp->inp_vflag & INP_IPV6) {
-				inet6print(&inp->in6p_laddr,
+				inet6print("local", &inp->in6p_laddr,
 				    (int)inp->inp_lport, name, 1);
 				if (!Lflag)
-					inet6print(&inp->in6p_faddr,
+					inet6print("remote", &inp->in6p_faddr,
 					    (int)inp->inp_fport, name, 0);
 			} /* else nothing printed now */
 #endif /* INET6 */
 		} else {
 			if (inp->inp_vflag & INP_IPV4) {
-				inetprint(&inp->inp_laddr, (int)inp->inp_lport,
+				inetprint("local", &inp->inp_laddr, (int)inp->inp_lport,
 				    name, 0);
 				if (!Lflag)
-					inetprint(&inp->inp_faddr,
+					inetprint("remote", &inp->inp_faddr,
 					    (int)inp->inp_fport, name,
 					    inp->inp_lport != inp->inp_fport);
 			}
 #ifdef INET6
 			else if (inp->inp_vflag & INP_IPV6) {
-				inet6print(&inp->in6p_laddr,
+				inet6print("local", &inp->in6p_laddr,
 				    (int)inp->inp_lport, name, 0);
 				if (!Lflag)
-					inet6print(&inp->in6p_faddr,
+					inet6print("remote", &inp->in6p_faddr,
 					    (int)inp->inp_fport, name,
 					    inp->inp_lport != inp->inp_fport);
 			} /* else nothing printed now */
 #endif /* INET6 */
 		}
 		if (xflag) {
-			printf("%6u %6u %6u %6u %6u %6u %6u %6u %6u %6u %6u %6u",
+			xo_emit("{:receive-mbufs/%6u} {:send-mbufs/%6u} "
+			"{:receive-clusters/%6u} {:send-clusters/%6u} "
+			"{:receive-high-water/%6u} {:send-high-water/%6u} "
+			"{:receive-low-water/%6u} {:send-low-water/%6u} "
+			"{:receive-mbuf-bytes/%6u} {:send-mbuf-bytes/%6u} "
+		"{:receive-mbuf-bytes-max/%6u} {:send-mbuf-bytes-max/%6u}",
 			       so->so_rcv.sb_mcnt, so->so_snd.sb_mcnt,
 			       so->so_rcv.sb_ccnt, so->so_snd.sb_ccnt,
 			       so->so_rcv.sb_hiwat, so->so_snd.sb_hiwat,
@@ -563,33 +582,34 @@ protopr(u_long off, const char *name, int af1, int proto)
 		}
 		if (istcp && !Lflag && !xflag && !Tflag && !Rflag) {
 			if (tp->t_state < 0 || tp->t_state >= TCP_NSTATES)
-				printf("%d", tp->t_state);
+				xo_emit("{:tcp-state/%d}", tp->t_state);
 			else {
-				printf("%s", tcpstates[tp->t_state]);
+				xo_emit("{:tcp-state/%s}", tcpstates[tp->t_state]);
 #if defined(TF_NEEDSYN) && defined(TF_NEEDFIN)
 				/* Show T/TCP `hidden state' */
 				if (tp->t_flags & (TF_NEEDSYN|TF_NEEDFIN))
-					putchar('*');
+					xo_emit("{:need-syn-or-fin/*}");
 #endif /* defined(TF_NEEDSYN) && defined(TF_NEEDFIN) */
 			}
 		}
 		if (Rflag) {
-			printf(" %08x %5d",
+			/* XXX: is this right Alfred */
+			xo_emit(" {:flow-id/%08x} {:flow-type/%5d}",
 			    inp->inp_flowid,
 			    inp->inp_flowtype);
 		}
-		putchar('\n');
+		xo_emit("\n");
 	}
 	if (xig != oxig && xig->xig_gen != oxig->xig_gen) {
 		if (oxig->xig_count > xig->xig_count) {
-			printf("Some %s sockets may have been deleted.\n",
+			xo_emit("Some {d:lost/%s} sockets may have been deleted.\n",
 			    name);
 		} else if (oxig->xig_count < xig->xig_count) {
-			printf("Some %s sockets may have been created.\n",
+			xo_emit("Some {d:created/%s} sockets may have been created.\n",
 			    name);
 		} else {
-			printf(
-	"Some %s sockets may have been created or deleted.\n",
+			xo_emit(
+	"Some {d:changed/%s} sockets may have been created or deleted.\n",
 			    name);
 		}
 	}
@@ -617,146 +637,226 @@ tcp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 			memset(&zerostat, 0, len);
 		if (sysctlbyname("net.inet.tcp.stats", &tcpstat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
-			warn("sysctl: net.inet.tcp.stats");
+			xo_warn("sysctl: net.inet.tcp.stats");
 			return;
 		}
 	} else
 		kread_counters(off, &tcpstat, len);
 
-	printf ("%s:\n", name);
+	xo_open_container("tcp");
+	xo_emit("{T:/%s}:\n", name);
 
 #define	p(f, m) if (tcpstat.f || sflag <= 1)				\
-	printf(m, (uintmax_t )tcpstat.f, plural(tcpstat.f))
+	xo_emit(m, (uintmax_t )tcpstat.f, plural(tcpstat.f))
 
 #define	p1a(f, m) if (tcpstat.f || sflag <= 1)				\
-	printf(m, (uintmax_t )tcpstat.f)
+	xo_emit(m, (uintmax_t )tcpstat.f)
 
 #define	p2(f1, f2, m) if (tcpstat.f1 || tcpstat.f2 || sflag <= 1)	\
-	printf(m, (uintmax_t )tcpstat.f1, plural(tcpstat.f1),		\
+	xo_emit(m, (uintmax_t )tcpstat.f1, plural(tcpstat.f1),		\
 	    (uintmax_t )tcpstat.f2, plural(tcpstat.f2))
 
 #define	p2a(f1, f2, m) if (tcpstat.f1 || tcpstat.f2 || sflag <= 1)	\
-	printf(m, (uintmax_t )tcpstat.f1, plural(tcpstat.f1),		\
+	xo_emit(m, (uintmax_t )tcpstat.f1, plural(tcpstat.f1),		\
 	    (uintmax_t )tcpstat.f2)
 
 #define	p3(f, m) if (tcpstat.f || sflag <= 1)				\
-	printf(m, (uintmax_t )tcpstat.f, pluralies(tcpstat.f))
+	xo_emit(m, (uintmax_t )tcpstat.f, pluralies(tcpstat.f))
 
-	p(tcps_sndtotal, "\t%ju packet%s sent\n");
-	p2(tcps_sndpack,tcps_sndbyte, "\t\t%ju data packet%s (%ju byte%s)\n");
+	p(tcps_sndtotal, "\t{:sent-packets/%ju} {N:/packet%s sent}\n");
+	p2(tcps_sndpack,tcps_sndbyte, "\t\t{:sent-data-packets/%ju} "
+	   "{N:/data packet%s} ({:sent-data-bytes/%ju} {N:/byte%s})\n");
 	p2(tcps_sndrexmitpack, tcps_sndrexmitbyte,
-	    "\t\t%ju data packet%s (%ju byte%s) retransmitted\n");
+	   "\t\t{:sent-retransmitted-packets/%ju} {N:/data packet%s} "
+	   "({:sent-retransmitted-bytes/%ju} {N:/byte%s}) {N:retransmitted}\n");
 	p(tcps_sndrexmitbad,
+	  "\t\t{:sent-unnecessary-retransmitted-packets/%ju} "
+	  "{N:/data packet%s unnecessarily retransmitted}\n");
+	p(tcps_mturesent, "\t\t{:sent-resends-by-mtu-discovery/%ju} "
+	  "{N:/resend%s initiated by MTU discovery}\n");
 	    "\t\t%ju data packet%s unnecessarily retransmitted\n");
-	p(tcps_mturesent, "\t\t%ju resend%s initiated by MTU discovery\n");
 	p2a(tcps_sndacks, tcps_delack,
-	    "\t\t%ju ack-only packet%s (%ju delayed)\n");
-	p(tcps_sndurg, "\t\t%ju URG only packet%s\n");
-	p(tcps_sndprobe, "\t\t%ju window probe packet%s\n");
-	p(tcps_sndwinup, "\t\t%ju window update packet%s\n");
-	p(tcps_sndctrl, "\t\t%ju control packet%s\n");
-	p(tcps_rcvtotal, "\t%ju packet%s received\n");
+	    "\t\t{:sent-ack-only-packets/%ju} "
+	    "{N:/ack-only packet%s/} ({:sent-packets-delayed/%ju} {N:delayed})\n");
+	p(tcps_sndurg, "\t\t{:sent-urg-only-packets/%ju} "
+	  "{N:/URG only packet%s}\n");
+	p(tcps_sndprobe, "\t\t{:sent-window-probe-packets/%ju} "
+	  "{N:/window probe packet%s}\n");
+	p(tcps_sndwinup, "\t\t{:sent-window-update-packets/%ju} "
+	  "{N:/window update packet%s}\n");
+	p(tcps_sndctrl, "\t\t{:sent-control-packets/%ju} "
+	  "{N:/control packet%s}\n");
+	p(tcps_rcvtotal, "\t{:received-packets/%ju} "
+	  "{N:/packet%s received}\n");
 	p2(tcps_rcvackpack, tcps_rcvackbyte,
-	    "\t\t%ju ack%s (for %ju byte%s)\n");
-	p(tcps_rcvdupack, "\t\t%ju duplicate ack%s\n");
-	p(tcps_rcvacktoomuch, "\t\t%ju ack%s for unsent data\n");
+	    "\t\t{:received-ack-packets/%ju} {N:/ack%s} "
+	   "{N:(for} {:received-ack-bytes/%ju} {N:/byte%s})\n");
+	p(tcps_rcvdupack, "\t\t{:received-duplicate-acks/%ju} "
+	  "{N:/duplicate ack%s}\n");
+	p(tcps_rcvacktoomuch, "\t\t{:received-acks-for-unsent-data/%ju} "
+	  "{N:/ack%s for unsent data}\n");
 	p2(tcps_rcvpack, tcps_rcvbyte,
-	    "\t\t%ju packet%s (%ju byte%s) received in-sequence\n");
+	    "\t\t{:received-in-sequence-packets/%ju} {N:/packet%s} "
+	   "({:received-in-sequence-bytes/%ju} {N:/byte%s}) "
+	   "{N:received in-sequence}\n");
 	p2(tcps_rcvduppack, tcps_rcvdupbyte,
-	    "\t\t%ju completely duplicate packet%s (%ju byte%s)\n");
-	p(tcps_pawsdrop, "\t\t%ju old duplicate packet%s\n");
+	    "\t\t{:received-completely-duplicate-packets/%ju} "
+	   "{N:/completely duplicate packet%s} "
+	   "({:received-completely-duplicate-bytes/%ju} {N:/byte%s})\n");
+	p(tcps_pawsdrop, "\t\t{:received-old-duplicate-packets/%ju} "
+	  "{N:/old duplicate packet%s}\n");
 	p2(tcps_rcvpartduppack, tcps_rcvpartdupbyte,
-	    "\t\t%ju packet%s with some dup. data (%ju byte%s duped)\n");
+	    "\t\t{:received-some-duplicate-packets/%ju} "
+	   "{N:/packet%s with some dup. data} "
+	   "({:received-some-duplicate-bytes/%ju} {N:/byte%s duped/})\n");
 	p2(tcps_rcvoopack, tcps_rcvoobyte,
-	    "\t\t%ju out-of-order packet%s (%ju byte%s)\n");
+	    "\t\t{:received-out-of-order/%ju} "
+	   "{N:/out-of-order packet%s} "
+	   "({:received-out-of-order-bytes/%ju} {N:/byte%s})\n");
 	p2(tcps_rcvpackafterwin, tcps_rcvbyteafterwin,
-	    "\t\t%ju packet%s (%ju byte%s) of data after window\n");
-	p(tcps_rcvwinprobe, "\t\t%ju window probe%s\n");
-	p(tcps_rcvwinupd, "\t\t%ju window update packet%s\n");
-	p(tcps_rcvafterclose, "\t\t%ju packet%s received after close\n");
-	p(tcps_rcvbadsum, "\t\t%ju discarded for bad checksum%s\n");
-	p(tcps_rcvbadoff, "\t\t%ju discarded for bad header offset field%s\n");
-	p1a(tcps_rcvshort, "\t\t%ju discarded because packet too short\n");
-	p1a(tcps_rcvreassfull,
-	    "\t\t%ju discarded due to no space in reassembly queue\n");
-	p(tcps_connattempt, "\t%ju connection request%s\n");
-	p(tcps_accepts, "\t%ju connection accept%s\n");
-	p(tcps_badsyn, "\t%ju bad connection attempt%s\n");
-	p(tcps_listendrop, "\t%ju listen queue overflow%s\n");
-	p(tcps_badrst, "\t%ju ignored RSTs in the window%s\n");
-	p(tcps_connects, "\t%ju connection%s established (including accepts)\n");
+	    "\t\t{:received-after-window-packets/%ju} {N:/packet%s} "
+	   "({:received-after-window-bytes/%ju} {N:/byte%s}) "
+	   "{N:of data after window}\n");
+	p(tcps_rcvwinprobe, "\t\t{:received-window-probes/%ju} "
+	  "{N:/window probe%s}\n");
+	p(tcps_rcvwinupd, "\t\t{:receive-window-update-packets/%ju} "
+	  "{N:/window update packet%s}\n");
+	p(tcps_rcvafterclose, "\t\t{:received-after-close-packets/%ju} "
+	  "{N:/packet%s received after close}\n");
+	p(tcps_rcvbadsum, "\t\t{:discard-bad-checksum/%ju} "
+	  "{N:/discarded for bad checksum%s}\n");
+	p(tcps_rcvbadoff, "\t\t{:discard-bad-header-offset/%ju} "
+	  "{N:/discarded for bad header offset field%s}\n");
+	p1a(tcps_rcvshort, "\t\t{:discard-too-short/%ju} "
+	    "{N:discarded because packet too short}\n");
+	p1a(tcps_rcvmemdrop, "\t\t{:discard-memory-problems/%ju} "
+	    "{N:discarded due to memory problems}\n");
+	p(tcps_connattempt, "\t{:connection-requests/%ju} "
+	  "{N:/connection request%s}\n");
+	p(tcps_accepts, "\t{:connections-accepts/%ju} "
+	  "{N:/connection accept%s}\n");
+	p(tcps_badsyn, "\t{:bad-connection-attempts/%ju} "
+	  "{N:/bad connection attempt%s}\n");
+	p(tcps_listendrop, "\t{:listen-queue-overflows/%ju} "
+	  "{N:/listen queue overflow%s}\n");
+	p(tcps_badrst, "\t{:ignored-in-window-resets/%ju} "
+	  "{N:/ignored RSTs in the window%s}\n");
+	p(tcps_connects, "\t{:connections-established/%ju} "
+	  "{N:/connection%s established (including accepts)}\n");
 	p2(tcps_closed, tcps_drops,
-	    "\t%ju connection%s closed (including %ju drop%s)\n");
-	p(tcps_cachedrtt, "\t\t%ju connection%s updated cached RTT on close\n");
+	   "\t{:connections-closed/%ju} "
+	   "{N:/connection%s closed (including} "
+	   "{:connection-drops/%ju} {N:/drop%s})\n");
+	p(tcps_cachedrtt, "\t\t{:connections-updated-rtt-on-close/%ju} "
+	  "{N:/connection%s updated cached RTT on close}\n");
 	p(tcps_cachedrttvar,
-	    "\t\t%ju connection%s updated cached RTT variance on close\n");
+	  "\t\t{:connections-updated-variance-on-close/%ju} "
+	  "{N:/connection%s updated cached RTT variance on close}\n");
 	p(tcps_cachedssthresh,
-	    "\t\t%ju connection%s updated cached ssthresh on close\n");
-	p(tcps_conndrops, "\t%ju embryonic connection%s dropped\n");
+	  "\t\t{:connections-updated-ssthresh-on-close/%ju} "
+	  "{N:/connection%s updated cached ssthresh on close}\n");
+	p(tcps_conndrops, "\t{:embryonic-connections-dropped/%ju} "
+	  "{N:/embryonic connection%s dropped}\n");
 	p2(tcps_rttupdated, tcps_segstimed,
-	    "\t%ju segment%s updated rtt (of %ju attempt%s)\n");
-	p(tcps_rexmttimeo, "\t%ju retransmit timeout%s\n");
-	p(tcps_timeoutdrop, "\t\t%ju connection%s dropped by rexmit timeout\n");
-	p(tcps_persisttimeo, "\t%ju persist timeout%s\n");
-	p(tcps_persistdrop, "\t\t%ju connection%s dropped by persist timeout\n");
+	    "\t{:segments-updated-rtt/%ju} "
+	   "{N:/segment%s updated rtt (of} "
+	   "{:segment-update-attempts/%ju} {N:/attempt%s})\n");
+	p(tcps_rexmttimeo, "\t{:retransmit-timeouts/%ju} "
+	  "{N:/retransmit timeout%s}\n");
+	p(tcps_timeoutdrop,
+	  "\t\t{:connections-dropped-by-retransmit-timeout/%ju} "
+	  "{N:/connection%s dropped by rexmit timeout}\n");
+	p(tcps_persisttimeo, "\t{:persist-timeout/%ju} "
+	  "{N:/persist timeout%s}\n");
+	p(tcps_persistdrop,
+	  "\t\t{:connections-dropped-by-persist-timeout/%ju} "
+	  "{N:/connection%s dropped by persist timeout}\n");
 	p(tcps_finwait2_drops,
-	    "\t%ju Connection%s (fin_wait_2) dropped because of timeout\n");
-	p(tcps_keeptimeo, "\t%ju keepalive timeout%s\n");
-	p(tcps_keepprobe, "\t\t%ju keepalive probe%s sent\n");
-	p(tcps_keepdrops, "\t\t%ju connection%s dropped by keepalive\n");
-	p(tcps_predack, "\t%ju correct ACK header prediction%s\n");
-	p(tcps_preddat, "\t%ju correct data packet header prediction%s\n");
+	  "\t{:connections-dropped-by-finwait2-timeout/%ju} "
+	  "{N:/Connection%s (fin_wait_2) dropped because of timeout}\n");
+	p(tcps_keeptimeo, "\t{:keepalive-timeout/%ju} "
+	  "{N:/keepalive timeout%s}\n");
+	p(tcps_keepprobe, "\t\t{:keepalive-probes/%ju} "
+	  "{N:/keepalive probe%s sent}\n");
+	p(tcps_keepdrops, "\t\t{:connections-dropped-by-keepalives/%ju} "
+	  "{N:/connection%s dropped by keepalive}\n");
+	p(tcps_predack, "\t{:ack-header-predictions/%ju} "
+	  "{N:/correct ACK header prediction%s}\n");
+	p(tcps_preddat, "\t{:data-packet-header-predictions/%ju} "
+	  "{N:/correct data packet header prediction%s}\n");
 
-	p3(tcps_sc_added, "\t%ju syncache entr%s added\n");
-	p1a(tcps_sc_retransmitted, "\t\t%ju retransmitted\n");
-	p1a(tcps_sc_dupsyn, "\t\t%ju dupsyn\n");
-	p1a(tcps_sc_dropped, "\t\t%ju dropped\n");
-	p1a(tcps_sc_completed, "\t\t%ju completed\n");
-	p1a(tcps_sc_bucketoverflow, "\t\t%ju bucket overflow\n");
-	p1a(tcps_sc_cacheoverflow, "\t\t%ju cache overflow\n");
-	p1a(tcps_sc_reset, "\t\t%ju reset\n");
-	p1a(tcps_sc_stale, "\t\t%ju stale\n");
-	p1a(tcps_sc_aborted, "\t\t%ju aborted\n");
-	p1a(tcps_sc_badack, "\t\t%ju badack\n");
-	p1a(tcps_sc_unreach, "\t\t%ju unreach\n");
-	p(tcps_sc_zonefail, "\t\t%ju zone failure%s\n");
-	p(tcps_sc_sendcookie, "\t%ju cookie%s sent\n");
-	p(tcps_sc_recvcookie, "\t%ju cookie%s received\n");
+	xo_open_container("syncache");
 
-	p3(tcps_hc_added, "\t%ju hostcache entr%s added\n");
-	p1a(tcps_hc_bucketoverflow, "\t\t%ju bucket overflow\n");
+	p3(tcps_sc_added, "\t{:entries-added/%ju} "
+	   "{N:/syncache entr%s added}\n");
+	p1a(tcps_sc_retransmitted, "\t\t{:retransmitted/%ju} "
+	    "{N:/retransmitted}\n");
+	p1a(tcps_sc_dupsyn, "\t\t{:duplicates/%ju} {N:/dupsyn}\n");
+	p1a(tcps_sc_dropped, "\t\t{:dropped/%ju} {N:/dropped}\n");
+	p1a(tcps_sc_completed, "\t\t{:completed/%ju} {N:/completed}\n");
+	p1a(tcps_sc_bucketoverflow, "\t\t{:bucket-overflow/%ju} "
+	    "{N:/bucket overflow}\n");
+	p1a(tcps_sc_cacheoverflow, "\t\t{:cache-overflow/%ju} "
+	    "{N:/cache overflow}\n");
+	p1a(tcps_sc_reset, "\t\t{:reset/%ju} {N:/reset}\n");
+	p1a(tcps_sc_stale, "\t\t{:stale/%ju} {N:/stale}\n");
+	p1a(tcps_sc_aborted, "\t\t{:aborted/%ju} {N:/aborted}\n");
+	p1a(tcps_sc_badack, "\t\t{:bad-ack/%ju} {N:/badack}\n");
+	p1a(tcps_sc_unreach, "\t\t{:unreachable/%ju} {N:/unreach}\n");
+	p(tcps_sc_zonefail, "\t\t{:zone-failures/%ju} {N:/zone failure%s}\n");
+	p(tcps_sc_sendcookie, "\t{:sent-cookies/%ju} {N:/cookie%s sent}\n");
+	p(tcps_sc_recvcookie, "\t{:receivd-cookies/%ju} "
+	  "{N:/cookie%s received}\n");
 
-	p(tcps_sack_recovery_episode, "\t%ju SACK recovery episode%s\n");
-	p(tcps_sack_rexmits,
-	    "\t%ju segment rexmit%s in SACK recovery episodes\n");
-	p(tcps_sack_rexmit_bytes,
-	    "\t%ju byte rexmit%s in SACK recovery episodes\n");
-	p(tcps_sack_rcv_blocks,
-	    "\t%ju SACK option%s (SACK blocks) received\n");
-	p(tcps_sack_send_blocks, "\t%ju SACK option%s (SACK blocks) sent\n");
-	p1a(tcps_sack_sboverflow, "\t%ju SACK scoreboard overflow\n");
+	xo_close_container("syncache");
 
-	p(tcps_ecn_ce, "\t%ju packet%s with ECN CE bit set\n");
-	p(tcps_ecn_ect0, "\t%ju packet%s with ECN ECT(0) bit set\n");
-	p(tcps_ecn_ect1, "\t%ju packet%s with ECN ECT(1) bit set\n");
-	p(tcps_ecn_shs, "\t%ju successful ECN handshake%s\n");
-	p(tcps_ecn_rcwnd, "\t%ju time%s ECN reduced the congestion window\n");
+	xo_open_container("hostcache");
 
-	p(tcps_sig_rcvgoodsig,
-	     "\t%ju packet%s with valid tcp-md5 signature received\n");
-	p(tcps_sig_rcvbadsig,
-	     "\t%ju packet%s with invalid tcp-md5 signature received\n");
-	p(tcps_sig_err_buildsig,
-	     "\t%ju packet%s with tcp-md5 signature mismatch\n");
-	p(tcps_sig_err_sigopt,
-	     "\t%ju packet%s with unexpected tcp-md5 signature received\n");
-	p(tcps_sig_err_nosigopt,
-	     "\t%ju packet%s without expected tcp-md5 signature received\n");
-#undef p
-#undef p1a
-#undef p2
-#undef p2a
-#undef p3
+	p3(tcps_hc_added, "\t{:entries-added/%ju} "
+	   "{N:/hostcache entr%s added}\n");
+	p1a(tcps_hc_bucketoverflow, "\t\t{:buffer-overflows/%ju} "
+	    "{N:/bucket overflow}\n");
+
+	xo_close_container("hostcache");
+
+	xo_open_container("sack");
+
+	p(tcps_sack_recovery_episode, "\t{:recovery-episodes/%ju} "
+	  "{N:/SACK recovery episode%s}\n");
+ 	p(tcps_sack_rexmits,
+	  "\t{:segment-retransmits/%ju} "
+	  "{N:/segment rexmit%s in SACK recovery episodes}\n");
+ 	p(tcps_sack_rexmit_bytes,
+	  "\t{:byte-retransmits/%ju} "
+	  "{N:/byte rexmit%s in SACK recovery episodes}\n");
+ 	p(tcps_sack_rcv_blocks,
+	  "\t{:received-blocks/%ju} "
+	  "{N:/SACK option%s (SACK blocks) received}\n");
+	p(tcps_sack_send_blocks, "\t{:sent-option-blocks/%ju} "
+	  "{N:/SACK option%s (SACK blocks) sent}\n");
+	p1a(tcps_sack_sboverflow, "\t{:scoreboard-overflows/%ju} "
+	    "{N:/SACK scoreboard overflow}\n");
+
+	xo_close_container("sack");
+	xo_open_container("ecn");
+
+	p(tcps_ecn_ce, "\t{:ce-packets/%ju} "
+	  "{N:/packet%s with ECN CE bit set}\n");
+	p(tcps_ecn_ect0, "\t{:ect0-packets/%ju} "
+	  "{N:/packet%s with ECN ECT(0) bit set}\n");
+	p(tcps_ecn_ect1, "\t{:ect1-packets/%ju} "
+	  "{N:/packet%s with ECN ECT(1) bit set}\n");
+	p(tcps_ecn_shs, "\t{:handshakes/%ju} "
+	  "{N:/successful ECN handshake%s}\n");
+	p(tcps_ecn_rcwnd, "\t{:congestion-reductions/%ju} "
+	  "{N:/time%s ECN reduced the congestion window}\n");
+ #undef p
+ #undef p1a
+ #undef p2
+ #undef p2a
+ #undef p3
+	xo_close_container("ecn");
+	xo_close_container("tcp");
 }
 
 /*
