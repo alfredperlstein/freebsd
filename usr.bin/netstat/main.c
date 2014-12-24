@@ -68,6 +68,7 @@ __FBSDID("$FreeBSD$");
 #include <string.h>
 #include <unistd.h>
 #include "netstat.h"
+#include <libxo/xo.h>
 
 static struct nlist nl[] = {
 #define	N_RTSTAT	0
@@ -356,7 +357,7 @@ main(int argc, char *argv[])
 			fib = strtol(optarg, &endptr, 0);
 			if (*endptr != '\0' ||
 			    (fib == 0 && (errno == EINVAL || errno == ERANGE)))
-				errx(1, "%s: invalid fib", optarg);
+				xo_errx(1, "%s: invalid fib", optarg);
 			break;
 		case 'f':
 			if (strcmp(optarg, "inet") == 0)
@@ -379,7 +380,7 @@ main(int argc, char *argv[])
 			else if (strcmp(optarg, "link") == 0)
 				af = AF_LINK;
 			else {
-				errx(1, "%s: unknown address family", optarg);
+				xo_errx(1, "%s: unknown address family", optarg);
 			}
 			break;
 		case 'g':
@@ -417,7 +418,7 @@ main(int argc, char *argv[])
 			break;
 		case 'p':
 			if ((tp = name2protox(optarg)) == NULL) {
-				errx(1,
+				xo_errx(1,
 				     "%s: unknown or uninstrumented protocol",
 				     optarg);
 			}
@@ -497,12 +498,13 @@ main(int argc, char *argv[])
 		setgid(getgid());
 
 	if (xflag && Tflag) 
-		errx(1, "-x and -T are incompatible, pick one.");
+		xo_errx(1, "-x and -T are incompatible, pick one.");
 
 	if (Bflag) {
 		if (!live)
 			usage();
 		bpf_stats(interface);
+		xo_finish();
 		exit(0);
 	}
 	if (mflag) {
@@ -511,6 +513,7 @@ main(int argc, char *argv[])
 				mbpr(kvmd, nl[N_SFSTAT].n_value);
 		} else
 			mbpr(NULL, 0);
+		xo_finish();
 		exit(0);
 	}
 	if (Qflag) {
@@ -519,6 +522,7 @@ main(int argc, char *argv[])
 				netisr_stats(kvmd);
 		} else
 			netisr_stats(NULL);
+		xo_finish();
 		exit(0);
 	}
 #if 0
@@ -596,6 +600,9 @@ main(int argc, char *argv[])
 		unixpr(nl[N_UNP_COUNT].n_value, nl[N_UNP_GENCNT].n_value,
 		    nl[N_UNP_DHEAD].n_value, nl[N_UNP_SHEAD].n_value,
 		    nl[N_UNP_SPHEAD].n_value);
+
+	xo_close_container("statistics");
+	xo_finish();
 	exit(0);
 }
 
@@ -609,20 +616,22 @@ printproto(struct protox *tp, const char *name)
 {
 	void (*pr)(u_long, const char *, int, int);
 	u_long off;
+	int first = 1;
 
 	if (sflag) {
 		if (iflag) {
 			if (tp->pr_istats)
 				intpr(interval, tp->pr_istats, af);
 			else if (pflag)
-				printf("%s: no per-interface stats routine\n",
+				xo_message(
+				    "%s: no per-interface stats routine",
 				    tp->pr_name);
 			return;
 		} else {
 			pr = tp->pr_stats;
 			if (!pr) {
 				if (pflag)
-					printf("%s: no stats routine\n",
+					xo_message("%s: no stats routine",
 					    tp->pr_name);
 				return;
 			}
@@ -630,8 +639,8 @@ printproto(struct protox *tp, const char *name)
 				off = 0;
 			else if (tp->pr_sindex < 0) {
 				if (pflag)
-					printf(
-				    "%s: stats routine doesn't work on cores\n",
+					xo_message(
+				    "%s: stats routine doesn't work on cores",
 					    tp->pr_name);
 				return;
 			} else
@@ -641,23 +650,31 @@ printproto(struct protox *tp, const char *name)
 		pr = tp->pr_cblocks;
 		if (!pr) {
 			if (pflag)
-				printf("%s: no PCB routine\n", tp->pr_name);
+				xo_message("%s: no PCB routine", tp->pr_name);
 			return;
 		}
 		if (tp->pr_usesysctl && live)
 			off = 0;
 		else if (tp->pr_index < 0) {
 			if (pflag)
-				printf(
-				    "%s: PCB routine doesn't work on cores\n",
+				xo_message(
+				    "%s: PCB routine doesn't work on cores",
 				    tp->pr_name);
 			return;
 		} else
 			off = nl[tp->pr_index].n_value;
 	}
 	if (pr != NULL && (off || (live && tp->pr_usesysctl) ||
-	    af != AF_UNSPEC))
+			   af != AF_UNSPEC)) {
+		if (first) {
+			xo_open_list("socket");
+			first = 0;
+		}
+
 		(*pr)(off, name, af, tp->pr_protocol);
+	}
+	if (!first)
+		xo_close_list("socket");
 }
 
 static int
@@ -716,7 +733,7 @@ kread(u_long addr, void *buf, size_t size)
 	if (!buf)
 		return (0);
 	if (kvm_read(kvmd, addr, buf, size) != (ssize_t)size) {
-		warnx("%s", kvm_geterr(kvmd));
+		xo_warnx("%s", kvm_geterr(kvmd));
 		return (-1);
 	}
 	return (0);
@@ -842,5 +859,6 @@ usage(void)
 "       netstat -g [-46W] [-f address_family] [-M core] [-N system]",
 "       netstat -gs [-46s] [-f address_family] [-M core] [-N system]",
 "       netstat -Q");
+	xo_finish();
 	exit(1);
 }

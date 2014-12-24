@@ -69,6 +69,7 @@ __FBSDID("$FreeBSD$");
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <libxo/xo.h>
 #include "netstat.h"
 
 /*
@@ -92,77 +93,86 @@ static void	print_mfc(struct mfc *, int, int *);
 static void
 print_bw_meter(struct bw_meter *bw_meter, int *banner_printed)
 {
-	char s0[256], s1[256], s2[256], s3[256];
+	char s1[256], s2[256], s3[256];
 	struct timeval now, end, delta;
 
 	gettimeofday(&now, NULL);
 
 	if (! *banner_printed) {
-		printf(" Bandwidth Meters\n");
-		printf("  %-30s", "Measured(Start|Packets|Bytes)");
-		printf(" %s", "Type");
-		printf("  %-30s", "Thresh(Interval|Packets|Bytes)");
-		printf(" Remain");
-		printf("\n");
+		xo_open_list("bandwidth-meter");
+		xo_emit(" {T:Bandwidth Meters}\n");
+		xo_emit("  {T:/%-30s}", "Measured(Start|Packets|Bytes)");
+		xo_emit(" {T:/%s}", "Type");
+		xo_emit("  {T:/%-30s}", "Thresh(Interval|Packets|Bytes)");
+		xo_emit(" {T:Remain}");
+		xo_emit("\n");
 		*banner_printed = 1;
 	}
 
+	xo_open_instance("bandwidth-meter");
+
 	/* The measured values */
-	if (bw_meter->bm_flags & BW_METER_UNIT_PACKETS)
+	if (bw_meter->bm_flags & BW_METER_UNIT_PACKETS) {
 		sprintf(s1, "%ju", (uintmax_t)bw_meter->bm_measured.b_packets);
-	else
+	} else
 		sprintf(s1, "?");
-	if (bw_meter->bm_flags & BW_METER_UNIT_BYTES)
+	if (bw_meter->bm_flags & BW_METER_UNIT_BYTES) {
 		sprintf(s2, "%ju", (uintmax_t)bw_meter->bm_measured.b_bytes);
-	else
+		xo_emit("{e:measured-bytes/%ju}",
+			(uintmax_t)bw_meter->bm_measured.b_bytes);
+	} else
 		sprintf(s2, "?");
-	sprintf(s0, "%lu.%lu|%s|%s",
+	xo_emit("  {[:-30}{:start-time/%lu.%06lu}|{q:measured-packets/%s}"
+		"|{q:measured-bytes%s}{]:}",
 		(u_long)bw_meter->bm_start_time.tv_sec,
 		(u_long)bw_meter->bm_start_time.tv_usec,
 		s1, s2);
-	printf("  %-30s", s0);
 
 	/* The type of entry */
-	sprintf(s0, "%s", "?");
-	if (bw_meter->bm_flags & BW_METER_GEQ)
-		sprintf(s0, "%s", ">=");
-	else if (bw_meter->bm_flags & BW_METER_LEQ)
-		sprintf(s0, "%s", "<=");
-	printf("  %-3s", s0);
+	xo_emit("  {t:type/%-3s}", 
+		(bw_meter->bm_flags & BW_METER_GEQ) ? ">="
+		: (bw_meter->bm_flags & BW_METER_LEQ) ? "<=" : "?");
 
 	/* The threshold values */
-	if (bw_meter->bm_flags & BW_METER_UNIT_PACKETS)
+	if (bw_meter->bm_flags & BW_METER_UNIT_PACKETS) {
 		sprintf(s1, "%ju", (uintmax_t)bw_meter->bm_threshold.b_packets);
-	else
+		xo_emit("{e:threshold-packets/%ju}",
+			(uintmax_t)bw_meter->bm_threshold.b_packets);
+	} else
 		sprintf(s1, "?");
-	if (bw_meter->bm_flags & BW_METER_UNIT_BYTES)
+	if (bw_meter->bm_flags & BW_METER_UNIT_BYTES) {
 		sprintf(s2, "%ju", (uintmax_t)bw_meter->bm_threshold.b_bytes);
-	else
+		xo_emit("{e:threshold-bytes/%ju}",
+			(uintmax_t)bw_meter->bm_threshold.b_bytes);
+	} else
 		sprintf(s2, "?");
-	sprintf(s0, "%lu.%lu|%s|%s",
+
+	xo_emit("  {[:-30}{:threshold-time/%lu.%06lu}|{q:threshold-packets/%s}"
+		"|{q:threshold-bytes%s}{]:}",
 		(u_long)bw_meter->bm_threshold.b_time.tv_sec,
 		(u_long)bw_meter->bm_threshold.b_time.tv_usec,
 		s1, s2);
-	printf("  %-30s", s0);
 
 	/* Remaining time */
 	timeradd(&bw_meter->bm_start_time,
 		 &bw_meter->bm_threshold.b_time, &end);
 	if (timercmp(&now, &end, <=)) {
 		timersub(&end, &now, &delta);
-		sprintf(s3, "%lu.%lu",
+		sprintf(s3, "%lu.%06lu",
 			(u_long)delta.tv_sec,
 			(u_long)delta.tv_usec);
 	} else {
 		/* Negative time */
 		timersub(&now, &end, &delta);
-		sprintf(s3, "-%lu.%lu",
+		sprintf(s3, "-%lu.06%lu",
 			(u_long)delta.tv_sec,
 			(u_long)delta.tv_usec);
 	}
-	printf(" %s", s3);
+	xo_emit(" {:remaining-time/%s}", s3);
 
-	printf("\n");
+	xo_open_instance("bandwidth-meter");
+
+	xo_emit("\n");
 }
 
 static void
@@ -176,21 +186,27 @@ print_mfc(struct mfc *m, int maxvif, int *banner_printed)
 	bw_banner_printed = 0;
 
 	if (! *banner_printed) {
-		printf("\nIPv4 Multicast Forwarding Table\n"
-		       " Origin          Group            "
-		       " Packets In-Vif  Out-Vifs:Ttls\n");
+		xo_open_list("multicast-forwarding-entry");
+		xo_emit("\n{T:IPv4 Multicast Forwarding Table}\n"
+		       " {T:Origin}          {T:Group}            "
+		       " {T:Packets In-Vif}  {T:Out-Vifs:Ttls}\n");
 		*banner_printed = 1;
 	}
 
-	printf(" %-15.15s", routename(m->mfc_origin.s_addr));
-	printf(" %-15.15s", routename(m->mfc_mcastgrp.s_addr));
-	printf(" %9lu", m->mfc_pkt_cnt);
-	printf("  %3d   ", m->mfc_parent);
+	xo_emit(" {:origin-address/%-15.15s}", routename(m->mfc_origin.s_addr));
+	xo_emit(" {:group-address/%-15.15s}", routename(m->mfc_mcastgrp.s_addr));
+	xo_emit(" {:sent-packets/%9lu}", m->mfc_pkt_cnt);
+	xo_emit("  {:parent/%3d}   ", m->mfc_parent);
+	xo_open_list("vif-ttl");
 	for (vifi = 0; vifi <= maxvif; vifi++) {
-		if (m->mfc_ttls[vifi] > 0)
-			printf(" %u:%u", vifi, m->mfc_ttls[vifi]);
+		if (m->mfc_ttls[vifi] > 0) {
+			xo_open_instance("vif-ttl");
+			xo_emit(" {k:vif/%u}:{:ttl/%u}", vifi, m->mfc_ttls[vifi]);
+			xo_close_instance("vif-ttl");
+		}
 	}
-	printf("\n");
+	xo_close_list("vif-ttl");
+	xo_emit("\n");
 
 	/*
 	 * XXX We break the rules and try to use KVM to read the
@@ -205,6 +221,8 @@ print_mfc(struct mfc *m, int maxvif, int *banner_printed)
 		print_bw_meter(&bw_meter, &bw_banner_printed);
 		bwm = bw_meter.bm_mfc_next;
 	}
+	if (banner_printed)
+		xo_close_list("bandwidth-meter");
 }
 
 void
@@ -266,23 +284,29 @@ mroutepr()
 
 		maxvif = vifi;
 		if (!banner_printed) {
-			printf("\nIPv4 Virtual Interface Table\n"
+			xo_emit("\n{T:IPv4 Virtual Interface Table\n"
 			       " Vif   Thresh   Local-Address   "
-			       "Remote-Address    Pkts-In   Pkts-Out\n");
+			       "Remote-Address    Pkts-In   Pkts-Out}\n");
 			banner_printed = 1;
+			xo_open_list("vif");
 		}
 
-		printf(" %2u    %6u   %-15.15s",
+		xo_open_instance("vif");
+		xo_emit(" {:vif/%2u}    {:threshold/%6u}   {:route/%-15.15s}",
 					/* opposite math of add_vif() */
 		    vifi, v->v_threshold,
 		    routename(v->v_lcl_addr.s_addr));
-		printf(" %-15.15s", (v->v_flags & VIFF_TUNNEL) ?
+		xo_emit(" {:source/%-15.15s}", (v->v_flags & VIFF_TUNNEL) ?
 		    routename(v->v_rmt_addr.s_addr) : "");
 
-		printf(" %9lu  %9lu\n", v->v_pkt_in, v->v_pkt_out);
+		xo_emit(" {:received-packets/%9lu}  {:sent-packets/%9lu}\n",
+		       v->v_pkt_in, v->v_pkt_out);
+		xo_close_instance("vif");
 	}
-	if (!banner_printed)
-		printf("\nIPv4 Virtual Interface Table is empty\n");
+	if (banner_printed)
+		xo_close_list("vif");
+	else
+		xo_emit("\n{T:IPv4 Virtual Interface Table is empty}\n");
 
 	banner_printed = 0;
 
@@ -302,19 +326,19 @@ mroutepr()
 		len = 0;
 		if (sysctlbyname("net.inet.ip.mfctable", NULL, &len, NULL,
 		    0) < 0) {
-			warn("sysctl: net.inet.ip.mfctable");
+			xo_warn("sysctl: net.inet.ip.mfctable");
 			return;
 		}
 
 		mfctable = malloc(len);
 		if (mfctable == NULL) {
-			warnx("malloc %lu bytes", (u_long)len);
+			xo_warnx("malloc %lu bytes", (u_long)len);
 			return;
 		}
 		if (sysctlbyname("net.inet.ip.mfctable", mfctable, &len, NULL,
 		    0) < 0) {
 			free(mfctable);
-			warn("sysctl: net.inet.ip.mfctable");
+			xo_warn("sysctl: net.inet.ip.mfctable");
 			return;
 		}
 
@@ -323,8 +347,10 @@ mroutepr()
 			print_mfc(m++, maxvif, &banner_printed);
 			len -= sizeof(*m);
 		}
+		if (banner_printed)
+			xo_close_list("multicast-forwarding-entry");
 		if (len != 0)
-			warnx("print_mfc: %lu trailing bytes", (u_long)len);
+			xo_warnx("print_mfc: %lu trailing bytes", (u_long)len);
 
 		free(mfctable);
 	} else {
@@ -336,14 +362,14 @@ mroutepr()
 		error = kread(pmfctablesize, (char *)&mfctablesize,
 		    sizeof(u_long));
 		if (error) {
-			warn("kread: mfctablesize");
+			xo_warn("kread: mfctablesize");
 			return;
 		}
 
 		len = sizeof(*mfchashtbl) * mfctablesize;
 		mfchashtbl = malloc(len);
 		if (mfchashtbl == NULL) {
-			warnx("malloc %lu bytes", (u_long)len);
+			xo_warnx("malloc %lu bytes", (u_long)len);
 			return;
 		}
 		kread(pmfchashtbl, (char *)&mfchashtbl, len);
@@ -354,14 +380,16 @@ mroutepr()
 				print_mfc(m, maxvif, &banner_printed);
 			}
 		}
+		if (banner_printed)
+			xo_close_list("multicast-forwarding-entry");
 
 		free(mfchashtbl);
 	}
 
 	if (!banner_printed)
-		printf("\nIPv4 Multicast Forwarding Table is empty\n");
+		xo_emit("\n{T:IPv4 Multicast Forwarding Table is empty}\n");
 
-	printf("\n");
+	xo_emit("\n");
 	numeric_addr = saved_numeric_addr;
 }
 

@@ -9,6 +9,7 @@ SRCS=	if.c inet.c main.c mbuf.c mroute.c netisr.c route.c \
 	flowtable.c
 
 WARNS?=	3
+CFLAGS+=${CARGS}
 CFLAGS+=-fno-strict-aliasing
 
 CFLAGS+=-DIPSEC
@@ -40,5 +41,8 @@ SRCS+=	netgraph.c
 LIBADD+=	netgraph
 CFLAGS+=-DNETGRAPH
 .endif
+
+DPADD+=${LIBXO}
+LDADD+=-lxo
 
 .include <bsd.prog.mk>

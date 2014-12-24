@@ -1,0 +1,39 @@
+@@ -88,7 +89,7 @@
+ 		/* See if module is loaded */
+ 		if ((fileid = kldfind(modname)) < 0) {
+ 			if (debug)
+-				warn("kldfind(%s)", modname);
++				xo_warn("kldfind(%s)", modname);
+ 			return;
+ 		}
+ 
+@@ -97,7 +98,7 @@
+ 		ks.version = sizeof(struct kld_file_stat);
+ 		if (kldstat(fileid, &ks) < 0) {
+ 			if (debug)
+-				warn("kldstat(%d)", fileid);
++				xo_warn("kldstat(%d)", fileid);
+ 			return;
+ 		}
+ 
+@@ -113,7 +114,7 @@
+ 		/* Did we find it? */
+ 		if (sym[0].n_value == 0) {
+ 			if (debug)
+-				warnx("%s not found", modname);
++				xo_warnx("%s not found", modname);
+ 			return;
+ 		}
+ 
+@@ -117,8 +119,9 @@
+ 
+ 		/* Show socket */
+ 		if (Aflag)
+-			printf("%8lx ", (u_long) this);
+-		printf("%-5.5s %6u %6u ",
++			xo_emit("{:address/%8lx} ", (u_long) this);
++		xo_emit("{t:name/%-5.5s} {:receive-bytes-waiting/%6u} "
++			"{:send-byte-waiting/%6u} ",
+ 		    name, sockb.so_rcv.sb_cc, sockb.so_snd.sb_cc);
+ 
+ 		/* Get info on associated node */

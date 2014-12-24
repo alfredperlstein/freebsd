@@ -59,6 +59,7 @@ __FBSDID("$FreeBSD$");
 #include <stdlib.h>
 #include <strings.h>
 #include <kvm.h>
+#include <libxo/xo.h>
 #include "netstat.h"
 
 static	void unixdomainpr(struct xunpcb *, struct xsocket *);
@@ -78,15 +79,15 @@ pcblist_sysctl(int type, char **bufp)
 	len = 0;
 	if (sysctlbyname(mibvar, 0, &len, 0, 0) < 0) {
 		if (errno != ENOENT)
-			warn("sysctl: %s", mibvar);
+			xo_warn("sysctl: %s", mibvar);
 		return (-1);
 	}
 	if ((buf = malloc(len)) == 0) {
-		warnx("malloc %lu bytes", (u_long)len);
+		xo_warnx("malloc %lu bytes", (u_long)len);
 		return (-2);
 	}
 	if (sysctlbyname(mibvar, buf, &len, 0, 0) < 0) {
-		warn("sysctl: %s", mibvar);
+		xo_warn("sysctl: %s", mibvar);
 		free(buf);
 		return (-2);
 	}
@@ -115,14 +116,14 @@ pcblist_kvm(u_long count_off, u_long gencnt_off, u_long head_off, char **bufp)
 	kread(count_off, &unp_count, sizeof(unp_count));
 	len = 2 * sizeof(xug) + (unp_count + unp_count / 8) * sizeof(xu);
 	if ((buf = malloc(len)) == 0) {
-		warnx("malloc %lu bytes", (u_long)len);
+		xo_warnx("malloc %lu bytes", (u_long)len);
 		return (-2);
 	}
 	p = buf;
 
 #define	COPYOUT(obj, size) do {						\
 	if (len < (size)) {						\
-		warnx("buffer size exceeded");				\
+		xo_warnx("buffer size exceeded");			\
 		goto fail;						\
 	}								\
 	bcopy((obj), p, (size));					\
@@ -226,6 +227,7 @@ unixpr(u_long count_off, u_long gencnt_off, u_long dhead_off, u_long shead_off,
 		if (ret < 0)
 			return;
 
+		xo_open_list("socket");
 		oxug = xug = (struct xunpgen *)buf;
 		for (xug = (struct xunpgen *)((char *)xug + xug->xug_len);
 		     xug->xug_len > sizeof(struct xunpgen);
@@ -236,17 +238,23 @@ unixpr(u_long count_off, u_long gencnt_off, u_long dhead_off, u_long shead_off,
 			/* Ignore PCBs which were freed during copyout. */
 			if (xunp->xu_unp.unp_gencnt > oxug->xug_gen)
 				continue;
+			xo_open_instance("socket");
 			unixdomainpr(xunp, so);
+			xo_close_instance("socket");
 		}
+		xo_close_list("socket");
 		if (xug != oxug && xug->xug_gen != oxug->xug_gen) {
 			if (oxug->xug_count > xug->xug_count) {
-				printf("Some %s sockets may have been deleted.\n",
+				xo_emit(
+	"Some {:type/%s} sockets may have been {:action/deleted}.\n",
 				       socktype[type]);
 			} else if (oxug->xug_count < xug->xug_count) {
-				printf("Some %s sockets may have been created.\n",
+				xo_emit(
+	"Some {:type/%s} sockets may have been {:action/created}.\n",
 			       socktype[type]);
 			} else {
-				printf("Some %s sockets may have been created or deleted",
+				xo_emit(
+	"Some {:type/%s} sockets may have been {:action/created or deleted}",
 			       socktype[type]);
 			}
 		}
@@ -261,6 +269,25 @@ unixdomainpr(struct xunpcb *xunp, struct xsocket *so)
 	struct sockaddr_un *sa;
 	static int first = 1;
 	char buf1[15];
+	static const char *titles[2] = {
+	    "{T:/%-8.8s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%8.8s} "
+	    "{T:/%8.8s} {T:/%8.8s} {T:/%8.8s} {T:Addr}\n",
+	    "{T:/%-16.16s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-6.6s} {T:/%16.16s} "
+	    "{T:/%16.16s} {T:/%16.16s} {T:/%16.16s} {T:Addr}\n"
+	};
+	static const char *format[2] = {
+	    "{:address/%8lx} {t:type/%-6.6s} "
+	    "{:receive-bytes-waiting/%6u} "
+	    "{:send-bytes-waiting/%6u} "
+	    "{:vnode/%8lx} {:connection/%8lx} "
+	    "{:first-reference/%8lx} {:next-reference/%8lx}",
+	    "{:address/%16lx} {t:type/%-6.6s} "
+	    "{:receive-bytes-waiting/%6u} "
+	    "{:send-bytes-waiting/%6u} "
+	    "{:vnode/%16lx} {:connection/%16lx} "
+	    "{:first-reference/%16lx} {:next-reference/%16lx}"
+	};
+	int fmt = (sizeof(void *) == 8) ? 1 : 0;
 
 	unp = &xunp->xu_unp;
 	if (unp->unp_addr)
@@ -269,9 +296,8 @@ unixdomainpr(struct xunpcb *xunp, struct xsocket *so)
 		sa = (struct sockaddr_un *)0;
 
 	if (first && !Lflag) {
-		printf("Active UNIX domain sockets\n");
-		printf(
-"%-8.8s %-6.6s %-6.6s %-6.6s %8.8s %8.8s %8.8s %8.8s Addr\n",
+		xo_emit("{T:Active UNIX domain sockets}\n");
+		xo_emit(titles[fmt],
 		    "Address", "Type", "Recv-Q", "Send-Q",
 		    "Inode", "Conn", "Refs", "Nextref");
 		first = 0;

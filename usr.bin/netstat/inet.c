@@ -80,10 +80,11 @@ __FBSDID("$FreeBSD$");
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+#include <libxo/xo.h>
 #include "netstat.h"
 
 char	*inetname(struct in_addr *);
-void	inetprint(struct in_addr *, int, const char *, int);
+void	inetprint(const char *, struct in_addr *, int, const char *, int);
 #ifdef INET6
 static int udp_done, tcp_done, sdp_done;
 #endif /* INET6 */
@@ -114,15 +115,15 @@ pcblist_sysctl(int proto, const char *name, char **bufp, int istcp __unused)
 	len = 0;
 	if (sysctlbyname(mibvar, 0, &len, 0, 0) < 0) {
 		if (errno != ENOENT)
-			warn("sysctl: %s", mibvar);
+			xo_warn("sysctl: %s", mibvar);
 		return (0);
 	}
 	if ((buf = malloc(len)) == 0) {
-		warnx("malloc %lu bytes", (u_long)len);
+		xo_warnx("malloc %lu bytes", (u_long)len);
 		return (0);
 	}
 	if (sysctlbyname(mibvar, buf, &len, 0, 0) < 0) {
-		warn("sysctl: %s", mibvar);
+		xo_warn("sysctl: %s", mibvar);
 		free(buf);
 		return (0);
 	}
@@ -205,14 +206,14 @@ pcblist_kvm(u_long off, char **bufp, int istcp)
 		    (pcbinfo.ipi_count + pcbinfo.ipi_count / 8) *
 		    sizeof(struct xinpcb);
 	if ((buf = malloc(len)) == 0) {
-		warnx("malloc %lu bytes", (u_long)len);
+		xo_warnx("malloc %lu bytes", (u_long)len);
 		return (0);
 	}
 	p = buf;
 
 #define	COPYOUT(obj, size) do {						\
 	if (len < (size)) {						\
-		warnx("buffer size exceeded");				\
+		xo_warnx("buffer size exceeded");				\
 		goto fail;						\
 	}								\
 	bcopy((obj), p, (size));					\
@@ -347,10 +348,12 @@ protopr(u_long off, const char *name, int af1, int proto)
 			return;
 	}
 
+
 	oxig = xig = (struct xinpgen *)buf;
 	for (xig = (struct xinpgen *)((char *)xig + xig->xig_len);
 	     xig->xig_len > sizeof(struct xinpgen);
 	     xig = (struct xinpgen *)((char *)xig + xig->xig_len)) {
+
 		if (istcp) {
 			timer = &((struct xtcpcb *)xig)->xt_timer;
 			tp = &((struct xtcpcb *)xig)->xt_tp;
@@ -545,7 +548,12 @@ protopr(u_long off, const char *name, int af1, int proto)
 			       so->so_rcv.sb_mbcnt, so->so_snd.sb_mbcnt,
 			       so->so_rcv.sb_mbmax, so->so_snd.sb_mbmax);
 			if (timer != NULL)
-				printf(" %4d.%02d %4d.%02d %4d.%02d %4d.%02d %4d.%02d %4d.%02d",
+				xo_emit(" {:retransmit-timer/%4d.%02d} "
+					"{:persist-timer/%4d.%02d} "
+					"{:keepalive-timer/%4d.%02d} "
+					"{:msl2-timer/%4d.%02d} "
+					"{:delay-ack-timer/%4d.%02d} "
+					"{:inactivity-timer/%4d.%02d}",
 				    timer->tt_rexmt / 1000, (timer->tt_rexmt % 1000) / 10,
 				    timer->tt_persist / 1000, (timer->tt_persist % 1000) / 10,
 				    timer->tt_keep / 1000, (timer->tt_keep % 1000) / 10,
@@ -773,27 +781,38 @@ udp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 			memset(&zerostat, 0, len);
 		if (sysctlbyname("net.inet.udp.stats", &udpstat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
-			warn("sysctl: net.inet.udp.stats");
+			xo_warn("sysctl: net.inet.udp.stats");
 			return;
 		}
 	} else
 		kread_counters(off, &udpstat, len);
 
-	printf("%s:\n", name);
+	xo_open_container("udp");
+	xo_emit("{T:/%s}:\n", name);
+
 #define	p(f, m) if (udpstat.f || sflag <= 1) \
-    printf("\t%ju " m, (uintmax_t)udpstat.f, plural(udpstat.f))
+    xo_emit("\t" m, (uintmax_t)udpstat.f, plural(udpstat.f))
 #define	p1a(f, m) if (udpstat.f || sflag <= 1) \
-    printf("\t%ju " m, (uintmax_t)udpstat.f)
-	p(udps_ipackets, "datagram%s received\n");
-	p1a(udps_hdrops, "with incomplete header\n");
-	p1a(udps_badlen, "with bad data length field\n");
-	p1a(udps_badsum, "with bad checksum\n");
-	p1a(udps_nosum, "with no checksum\n");
-	p1a(udps_noport, "dropped due to no socket\n");
+    xo_emit("\t" m, (uintmax_t)udpstat.f)
+	p(udps_ipackets, "{:received-datagrams/%ju} "
+	  "{N:/datagram%s received}\n");
+	p1a(udps_hdrops, "{:dropped-incomplete-headers/%ju} "
+	    "{N:/with incomplete header}\n");
+	p1a(udps_badlen, "{:dropped-bad-data-length/%ju} "
+	    "{N:/with bad data length field}\n");
+	p1a(udps_badsum, "{:dropped-bad-checksum/%ju} "
+	    "{N:/with bad checksum}\n");
+	p1a(udps_nosum, "{:dropped-no-checksum/%ju} "
+	    "{N:/with no checksum}\n");
+	p1a(udps_noport, "{:dropped-no-socket/%ju} "
+	    "{N:/dropped due to no socket}\n");
 	p(udps_noportbcast,
-	    "broadcast/multicast datagram%s undelivered\n");
-	p1a(udps_fullsock, "dropped due to full socket buffers\n");
-	p1a(udpps_pcbhashmiss, "not for hashed pcb\n");
+	    "{:dropped-broadcast-multicast/%ju} "
+	  "{N:/broadcast\\/multicast datagram%s undelivered}\n");
+	p1a(udps_fullsock, "{:dropped-full-socket-buffer/%ju} "
+	    "{N:/dropped due to full socket buffers}\n");
+	p1a(udpps_pcbhashmiss, "{:not-for-hashed-pcb/%ju} "
+	    "{N:/not for hashed pcb}\n");
 	delivered = udpstat.udps_ipackets -
 		    udpstat.udps_hdrops -
 		    udpstat.udps_badlen -
@@ -802,13 +821,16 @@ udp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		    udpstat.udps_noportbcast -
 		    udpstat.udps_fullsock;
 	if (delivered || sflag <= 1)
-		printf("\t%ju delivered\n", (uint64_t)delivered);
-	p(udps_opackets, "datagram%s output\n");
+		xo_emit("\t{:delivered-packets/%ju} {N:/delivered}\n",
+			(uint64_t)delivered);
+	p(udps_opackets, "{:output-packets/%ju} {N:/datagram%s output}\n");
 	/* the next statistic is cumulative in udps_noportbcast */
 	p(udps_filtermcast,
-	    "time%s multicast source filter matched\n");
+	    "{:multicast-source-filter-matches/%ju} "
+	  "{N:/time%s multicast source filter matched}\n");
 #undef p
 #undef p1a
+	xo_close_container("udp");
 }
 
 /*
@@ -826,7 +848,7 @@ carp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		if (sysctlbyname("net.inet.carp.stats", &carpstat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
 			if (errno != ENOENT)
-				warn("sysctl: net.inet.carp.stats");
+				xo_warn("sysctl: net.inet.carp.stats");
 			return;
 		}
 	} else {
@@ -835,31 +857,47 @@ carp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		kread_counters(off, &carpstat, len);
 	}
 
-	printf("%s:\n", name);
+	xo_open_container(name);
+	xo_emit("{T:/%s}:\n", name);
 
 #define	p(f, m) if (carpstat.f || sflag <= 1) \
-	printf(m, (uintmax_t)carpstat.f, plural(carpstat.f))
+	xo_emit(m, (uintmax_t)carpstat.f, plural(carpstat.f))
 #define	p2(f, m) if (carpstat.f || sflag <= 1) \
-	printf(m, (uintmax_t)carpstat.f)
+	xo_emit(m, (uintmax_t)carpstat.f)
 
-	p(carps_ipackets, "\t%ju packet%s received (IPv4)\n");
-	p(carps_ipackets6, "\t%ju packet%s received (IPv6)\n");
-	p(carps_badttl, "\t\t%ju packet%s discarded for wrong TTL\n");
-	p(carps_hdrops, "\t\t%ju packet%s shorter than header\n");
-	p(carps_badsum, "\t\t%ju discarded for bad checksum%s\n");
-	p(carps_badver,	"\t\t%ju discarded packet%s with a bad version\n");
-	p2(carps_badlen, "\t\t%ju discarded because packet too short\n");
-	p2(carps_badauth, "\t\t%ju discarded for bad authentication\n");
-	p2(carps_badvhid, "\t\t%ju discarded for bad vhid\n");
-	p2(carps_badaddrs, "\t\t%ju discarded because of a bad address list\n");
-	p(carps_opackets, "\t%ju packet%s sent (IPv4)\n");
-	p(carps_opackets6, "\t%ju packet%s sent (IPv6)\n");
-	p2(carps_onomem, "\t\t%ju send failed due to mbuf memory error\n");
+	p(carps_ipackets, "\t{:received-inet-packets/%ju} "
+	  "{N:/packet%s received (IPv4)}\n");
+	p(carps_ipackets6, "\t{:received-inet6-packets/%ju} "
+	  "{N:/packet%s received (IPv6)}\n");
+	p(carps_badttl, "\t\t{:dropped-wrong-ttl/%ju} "
+	  "{N:/packet%s discarded for wrong TTL}\n");
+	p(carps_hdrops, "\t\t{:dropped-short-header/%ju} "
+	  "{N:/packet%s shorter than header}\n");
+	p(carps_badsum, "\t\t{:dropped-bad-checksum/%ju} "
+	  "{N:/discarded for bad checksum%s}\n");
+	p(carps_badver,	"\t\t{:dropped-bad-version/%ju} "
+	  "{N:/discarded packet%s with a bad version}\n");
+	p2(carps_badlen, "\t\t{:dropped-short-packet/%ju} "
+	   "{N:/discarded because packet too short}\n");
+	p2(carps_badauth, "\t\t{:dropped-bad-authentication/%ju} "
+	   "{N:/discarded for bad authentication}\n");
+	p2(carps_badvhid, "\t\t{:dropped-bad-vhid/%ju} "
+	   "{N:/discarded for bad vhid}\n");
+	p2(carps_badaddrs, "\t\t{:dropped-bad-address-list/%ju} "
+	   "{N:/discarded because of a bad address list}\n");
+	p(carps_opackets, "\t{:sent-inet-packets/%ju} "
+	  "{N:/packet%s sent (IPv4)}\n");
+	p(carps_opackets6, "\t{:sent-inet6-packets/%ju} "
+	  "{N:/packet%s sent (IPv6)}\n");
+	p2(carps_onomem, "\t\t{:send-failed-memory-error/%ju} "
+	   "{N:/send failed due to mbuf memory error}\n");
 #if notyet
-	p(carps_ostates, "\t\t%s state update%s sent\n");
+	p(carps_ostates, "\t\t{:send-state-updates/%s} "
+	  "{N:/state update%s sent}\n");
 #endif
 #undef p
 #undef p2
+	xo_close_container(name);
 }
 
 /*
@@ -876,54 +914,85 @@ ip_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 			memset(&zerostat, 0, len);
 		if (sysctlbyname("net.inet.ip.stats", &ipstat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
-			warn("sysctl: net.inet.ip.stats");
+		        xo_warn("sysctl: net.inet.ip.stats");
 			return;
 		}
 	} else
 		kread_counters(off, &ipstat, len);
 
-	printf("%s:\n", name);
+	xo_open_container(name);
+	xo_emit("{T:/%s}:\n", name);
 
 #define	p(f, m) if (ipstat.f || sflag <= 1) \
-    printf(m, (uintmax_t )ipstat.f, plural(ipstat.f))
+    xo_emit(m, (uintmax_t )ipstat.f, plural(ipstat.f))
 #define	p1a(f, m) if (ipstat.f || sflag <= 1) \
-    printf(m, (uintmax_t )ipstat.f)
+    xo_emit(m, (uintmax_t )ipstat.f)
 
-	p(ips_total, "\t%ju total packet%s received\n");
-	p(ips_badsum, "\t%ju bad header checksum%s\n");
-	p1a(ips_toosmall, "\t%ju with size smaller than minimum\n");
-	p1a(ips_tooshort, "\t%ju with data size < data length\n");
-	p1a(ips_toolong, "\t%ju with ip length > max ip packet size\n");
-	p1a(ips_badhlen, "\t%ju with header length < data size\n");
-	p1a(ips_badlen, "\t%ju with data length < header length\n");
-	p1a(ips_badoptions, "\t%ju with bad options\n");
-	p1a(ips_badvers, "\t%ju with incorrect version number\n");
-	p(ips_fragments, "\t%ju fragment%s received\n");
-	p(ips_fragdropped, "\t%ju fragment%s dropped (dup or out of space)\n");
-	p(ips_fragtimeout, "\t%ju fragment%s dropped after timeout\n");
-	p(ips_reassembled, "\t%ju packet%s reassembled ok\n");
-	p(ips_delivered, "\t%ju packet%s for this host\n");
-	p(ips_noproto, "\t%ju packet%s for unknown/unsupported protocol\n");
-	p(ips_forward, "\t%ju packet%s forwarded");
-	p(ips_fastforward, " (%ju packet%s fast forwarded)");
+	p(ips_total, "\t{:received-packets/%ju} "
+	  "{N:/total packet%s received}\n");
+	p(ips_badsum, "\t{:dropped-bad-checksum/%ju} "
+	  "{N:/bad header checksum%s}\n");
+	p1a(ips_toosmall, "\t{:dropped-below-minimum-size/%ju} "
+	    "{N:/with size smaller than minimum}\n");
+	p1a(ips_tooshort, "\t{:dropped-short-packets/%ju} "
+	    "{N:/with data size < data length}\n");
+	p1a(ips_toolong, "\t{:dropped-too-long/%ju} "
+	    "{N:/with ip length > max ip packet size}\n");
+	p1a(ips_badhlen, "\t{:dropped-short-header-length/%ju} "
+	    "{N:/with header length < data size}\n");
+	p1a(ips_badlen, "\t{:dropped-short-data/%ju} "
+	    "{N:/with data length < header length}\n");
+	p1a(ips_badoptions, "\t{:dropped-bad-options/%ju} "
+	    "{N:/with bad options}\n");
+	p1a(ips_badvers, "\t{:dropped-bad-version/%ju} "
+	    "{N:/with incorrect version number}\n");
+	p(ips_fragments, "\t{:received-fragments/%ju} "
+	  "{N:/fragment%s received}\n");
+	p(ips_fragdropped, "\t{:dropped-fragments/%ju} "
+	  "{N:/fragment%s dropped (dup or out of space)}\n");
+	p(ips_fragtimeout, "\t{:dropped-fragments-after-timeout/%ju} "
+	  "{N:/fragment%s dropped after timeout}\n");
+	p(ips_reassembled, "\t{:reassembled-packets/%ju} "
+	  "{N:/packet%s reassembled ok}\n");
+	p(ips_delivered, "\t{:received-local-packets/%ju} "
+	  "{N:/packet%s for this host}\n");
+	p(ips_noproto, "\t{:dropped-unknown-protocol/%ju} "
+	  "{N:/packet%s for unknown\\/unsupported protocol}\n");
+	p(ips_forward, "\t{:forwarded-packets/%ju} "
+	  "{N:/packet%s forwarded}");
+	p(ips_fastforward, " ({:fast-forwarded-packets/%ju} "
+	  "{N:/packet%s fast forwarded})");
 	if (ipstat.ips_forward || sflag <= 1)
-		putchar('\n');
-	p(ips_cantforward, "\t%ju packet%s not forwardable\n");
+		xo_emit("\n");
+	p(ips_cantforward, "\t{:packets-cannot-forward/%ju} "
+	  "{N:/packet%s not forwardable}\n");
 	p(ips_notmember,
-	    "\t%ju packet%s received for unknown multicast group\n");
-	p(ips_redirectsent, "\t%ju redirect%s sent\n");
-	p(ips_localout, "\t%ju packet%s sent from this host\n");
-	p(ips_rawout, "\t%ju packet%s sent with fabricated ip header\n");
+	    "\t{:received-unknown-multicast-group/%ju} "
+	  "{N:/packet%s received for unknown multicast group}\n");
+	p(ips_redirectsent, "\t{:redirects-sent/%ju} "
+	  "{N:/redirect%s sent}\n");
+	p(ips_localout, "\t{:sent-packets/%ju} "
+	  "{N:/packet%s sent from this host}\n");
+	p(ips_rawout, "\t{:send-packets-fabricated-header/%ju} "
+	  "{N:/packet%s sent with fabricated ip header}\n");
 	p(ips_odropped,
-	    "\t%ju output packet%s dropped due to no bufs, etc.\n");
-	p(ips_noroute, "\t%ju output packet%s discarded due to no route\n");
-	p(ips_fragmented, "\t%ju output datagram%s fragmented\n");
-	p(ips_ofragments, "\t%ju fragment%s created\n");
-	p(ips_cantfrag, "\t%ju datagram%s that can't be fragmented\n");
-	p(ips_nogif, "\t%ju tunneling packet%s that can't find gif\n");
-	p(ips_badaddr, "\t%ju datagram%s with bad address in header\n");
+	    "\t{:discard-no-mbufs/%ju} "
+	  "{N:/output packet%s dropped due to no bufs, etc.}\n");
+	p(ips_noroute, "\t{:discard-no-route/%ju} "
+	  "{N:/output packet%s discarded due to no route}\n");
+	p(ips_fragmented, "\t{:sent-fragments/%ju} "
+	  "{N:/output datagram%s fragmented}\n");
+	p(ips_ofragments, "\t{:fragments-created/%ju} "
+	  "{N:/fragment%s created}\n");
+	p(ips_cantfrag, "\t{:discard-cannot-fragment/%ju} "
+	  "{N:/datagram%s that can't be fragmented}\n");
+	p(ips_nogif, "\t{:discard-tunnel-no-gif/%ju} "
+	  "{N:/tunneling packet%s that can't find gif}\n");
+	p(ips_badaddr, "\t{:discard-bad-address/%ju} "
+	  "{N:/datagram%s with bad address in header}\n");
 #undef p
 #undef p1a
+	xo_close_container(name);
 }
 
 /*
@@ -940,29 +1009,37 @@ arp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 			memset(&zerostat, 0, len);
 		if (sysctlbyname("net.link.ether.arp.stats", &arpstat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
-			warn("sysctl: net.link.ether.arp.stats");
+			xo_warn("sysctl: net.link.ether.arp.stats");
 			return;
 		}
 	} else
 		kread_counters(off, &arpstat, len);
 
-	printf("%s:\n", name);
+	xo_open_container(name);
+	xo_emit("{T:/%s}:\n", name);
 
 #define	p(f, m) if (arpstat.f || sflag <= 1) \
-    printf("\t%ju " m, (uintmax_t)arpstat.f, plural(arpstat.f))
+    xo_emit("\t" m, (uintmax_t)arpstat.f, plural(arpstat.f))
 #define	p2(f, m) if (arpstat.f || sflag <= 1) \
-    printf("\t%ju " m, (uintmax_t)arpstat.f, pluralies(arpstat.f))
+    xo_emit("\t" m, (uintmax_t)arpstat.f, pluralies(arpstat.f))
 
-	p(txrequests, "ARP request%s sent\n");
-	p2(txreplies, "ARP repl%s sent\n");
-	p(rxrequests, "ARP request%s received\n");
-	p2(rxreplies, "ARP repl%s received\n");
-	p(received, "ARP packet%s received\n");
-	p(dropped, "total packet%s dropped due to no ARP entry\n");
-	p(timeouts, "ARP entry%s timed out\n");
-	p(dupips, "Duplicate IP%s seen\n");
+	p(txrequests, "{:sent-requests/%ju} {N:/ARP request%s sent}\n");
+	p2(txreplies, "{:sent-replies/%ju} {N:/ARP repl%s sent}\n");
+	p(rxrequests, "{:received-requests/%ju} "
+	  "{N:/ARP request%s received}\n");
+	p2(rxreplies, "{:received-replies/%ju} "
+	   "{N:/ARP repl%s received}\n");
+	p(received, "{:received-packers/%ju} "
+	  "{N:/ARP packet%s received}\n");
+	p(dropped, "{:dropped-no-entry/%ju} "
+	  "{N:/total packet%s dropped due to no ARP entry}\n");
+	p(timeouts, "{:entries-timeout/%ju} "
+	  "{N:/ARP entry%s timed out}\n");
+	p(dupips, "{:dropped-duplicate-address/%ju} "
+	  "{N:/Duplicate IP%s seen}\n");
 #undef p
 #undef p2
+	xo_close_container(name);
 }
 
 
@@ -1027,59 +1104,89 @@ icmp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 			memset(&zerostat, 0, len);
 		if (sysctlbyname("net.inet.icmp.stats", &icmpstat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
-			warn("sysctl: net.inet.icmp.stats");
+			xo_warn("sysctl: net.inet.icmp.stats");
 			return;
 		}
 	} else
 		kread_counters(off, &icmpstat, len);
 
-	printf("%s:\n", name);
+	xo_open_container(name);
+	xo_emit("{T:/%s}:\n", name);
 
 #define	p(f, m) if (icmpstat.f || sflag <= 1) \
-    printf(m, icmpstat.f, plural(icmpstat.f))
+    xo_emit(m, icmpstat.f, plural(icmpstat.f))
 #define	p1a(f, m) if (icmpstat.f || sflag <= 1) \
-    printf(m, icmpstat.f)
+    xo_emit(m, icmpstat.f)
 #define	p2(f, m) if (icmpstat.f || sflag <= 1) \
-    printf(m, icmpstat.f, plurales(icmpstat.f))
+    xo_emit(m, icmpstat.f, plurales(icmpstat.f))
 
-	p(icps_error, "\t%lu call%s to icmp_error\n");
+	p(icps_error, "\t{:icmp-calls/%lu} "
+	  "{N:/call%s to icmp_error}\n");
 	p(icps_oldicmp,
-	    "\t%lu error%s not generated in response to an icmp message\n");
+	    "\t{:errors-not-from-message/%lu} "
+	  "{N:/error%s not generated in response to an icmp message}\n");
+
 	for (first = 1, i = 0; i < ICMP_MAXTYPE + 1; i++)
 		if (icmpstat.icps_outhist[i] != 0) {
 			if (first) {
-				printf("\tOutput histogram:\n");
+				xo_open_list("output-histagram");
+				xo_emit("\tOutput histogram:\n");
 				first = 0;
 			}
+			xo_open_instance("output-histagram");
 			if (icmpnames[i] != NULL)
-				printf("\t\t%s: %lu\n", icmpnames[i],
+				xo_emit("\t\t{k:name/%s}: {:count/%lu}\n",
+					icmpnames[i],
 					icmpstat.icps_outhist[i]);
 			else
-				printf("\t\tunknown ICMP #%d: %lu\n", i,
-					icmpstat.icps_outhist[i]);
+				xo_emit(
+			"\t\tunknown ICMP #{k:name/%d}: {:count/%lu}\n",
+					i, icmpstat.icps_outhist[i]);
+			xo_close_instance("output-histagram");
 		}
-	p(icps_badcode, "\t%lu message%s with bad code fields\n");
-	p(icps_tooshort, "\t%lu message%s less than the minimum length\n");
-	p(icps_checksum, "\t%lu message%s with bad checksum\n");
-	p(icps_badlen, "\t%lu message%s with bad length\n");
-	p1a(icps_bmcastecho, "\t%lu multicast echo requests ignored\n");
-	p1a(icps_bmcasttstamp, "\t%lu multicast timestamp requests ignored\n");
+	if (!first)
+		xo_close_list("output-histagram");
+
+	p(icps_badcode, "\t{:dropped-bad-code/%lu} "
+	  "{N:/message%s with bad code fields}\n");
+	p(icps_tooshort, "\t{:dropped-too-short/%lu} "
+	  "{N:/message%s less than the minimum length}\n");
+	p(icps_checksum, "\t{:dropped-bad-checksum/%lu} "
+	  "{N:/message%s with bad checksum}\n");
+	p(icps_badlen, "\t{:dropped-bad-length/%lu} "
+	  "{N:/message%s with bad length}\n");
+	p1a(icps_bmcastecho, "\t{:dropped-multicast-echo/%lu} "
+	    "{N:/multicast echo requests ignored}\n");
+	p1a(icps_bmcasttstamp, "\t{:dropped-multicast-timestamp/%lu} "
+	    "{N:/multicast timestamp requests ignored}\n");
+
 	for (first = 1, i = 0; i < ICMP_MAXTYPE + 1; i++)
 		if (icmpstat.icps_inhist[i] != 0) {
 			if (first) {
-				printf("\tInput histogram:\n");
+				xo_open_list("input-histagram");
+				xo_emit("\tInput histogram:\n");
 				first = 0;
 			}
+			xo_open_instance("input-histagram");
 			if (icmpnames[i] != NULL)
-				printf("\t\t%s: %lu\n", icmpnames[i],
-				    icmpstat.icps_inhist[i]);
+				xo_emit("\t\t{k:name/%s}: {:count/%lu}\n",
+					icmpnames[i],
+					icmpstat.icps_inhist[i]);
 			else
-				printf("\t\tunknown ICMP #%d: %lu\n", i,
-				    icmpstat.icps_inhist[i]);
+				xo_emit(
+			"\t\tunknown ICMP #{k:name/%d}: {:count/%lu}\n",
+					i, icmpstat.icps_inhist[i]);
+			xo_close_instance("input-histagram");
 		}
-	p(icps_reflect, "\t%lu message response%s generated\n");
-	p2(icps_badaddr, "\t%lu invalid return address%s\n");
-	p(icps_noroute, "\t%lu no return route%s\n");
+	if (!first)
+		xo_close_list("input-histagram");
+
+	p(icps_reflect, "\t{:sent-packets/%lu} "
+	  "{N:/message response%s generated}\n");
+	p2(icps_badaddr, "\t{:discard-invalid-return-address/%lu} "
+	   "{N:/invalid return address%s}\n");
+	p(icps_noroute, "\t{:discard-no-route/%lu} "
+	  "{N:/no return route%s}\n");
 #undef p
 #undef p1a
 #undef p2
@@ -1088,9 +1195,12 @@ icmp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		if (sysctlbyname("net.inet.icmp.maskrepl", &i, &len, NULL, 0) <
 		    0)
 			return;
-		printf("\tICMP address mask responses are %sabled\n",
+		xo_emit(
+	"\tICMP address mask responses are {:icmp-address-responses/%sabled}\n",
 		    i ? "en" : "dis");
 	}
+
+	xo_close_container(name);
 }
 
 #ifndef BURN_BRIDGES
@@ -1107,30 +1217,41 @@ igmp_stats_live_old(const char *name)
 		memset(&zerostat, 0, len);
 	if (sysctlbyname("net.inet.igmp.stats", &oigmpstat, &len,
 	    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
-		warn("sysctl: net.inet.igmp.stats");
+		xo_warn("sysctl: net.inet.igmp.stats");
 		return;
 	}
 
-	printf("%s:\n", name);
+	xo_open_container(name);
+	xo_emit("{T:/%s}:\n", name);
 
 #define	p(f, m) if (oigmpstat.f || sflag <= 1) \
-    printf(m, oigmpstat.f, plural(oigmpstat.f))
+    xo_emit(m, oigmpstat.f, plural(oigmpstat.f))
 #define	py(f, m) if (oigmpstat.f || sflag <= 1) \
-    printf(m, oigmpstat.f, oigmpstat.f != 1 ? "ies" : "y")
-	p(igps_rcv_total, "\t%u message%s received\n");
-	p(igps_rcv_tooshort, "\t%u message%s received with too few bytes\n");
-	p(igps_rcv_badsum, "\t%u message%s received with bad checksum\n");
-	py(igps_rcv_queries, "\t%u membership quer%s received\n");
+    xo_emit(m, oigmpstat.f, oigmpstat.f != 1 ? "ies" : "y")
+	p(igps_rcv_total, "\t{:received-messages/%u} "
+	  "{N:/message%s received}\n");
+	p(igps_rcv_tooshort, "\t{:dropped-too-short/%u} "
+	  "{N:/message%s received with too few bytes}\n");
+	p(igps_rcv_badsum, "\t{:dropped-bad-checksum/%u} "
+	  "{N:/message%s received with bad checksum}\n");
+	py(igps_rcv_queries, "\t{:membership-queries/%u} "
+	   "{N:/membership quer%s received}\n");
 	py(igps_rcv_badqueries,
-	    "\t%u membership quer%s received with invalid field(s)\n");
-	p(igps_rcv_reports, "\t%u membership report%s received\n");
+	    "\t{:dropped-membership-queries/%u} "
+	   "{N:/membership quer%s received with invalid field(s)}\n");
+	p(igps_rcv_reports, "\t{:received-membership-reports/%u} "
+	  "{N:/membership report%s received}\n");
 	p(igps_rcv_badreports,
-	    "\t%u membership report%s received with invalid field(s)\n");
+	    "\t{:dropped-membership-reports/%u} "
+	  "{N:/membership report%s received with invalid field(s)}\n");
 	p(igps_rcv_ourreports,
-"\t%u membership report%s received for groups to which we belong\n");
-        p(igps_snd_reports, "\t%u membership report%s sent\n");
+	  "\t{:received-membership-reports-matching/%u} "
+	  "{N:/membership report%s received for groups to which we belong}\n");
+        p(igps_snd_reports, "\t{:sent-membership-reports/%u} "
+	  "{N:/membership report%s sent}\n");
 #undef p
 #undef py
+	xo_close_container(name);
 }
 #endif /* !BURN_BRIDGES */
 
@@ -1154,7 +1275,7 @@ igmp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		len = 0;
 		if (sysctlbyname("net.inet.igmp.stats", NULL, &len, NULL,
 		    0) < 0) {
-			warn("sysctl: net.inet.igmp.stats");
+			xo_warn("sysctl: net.inet.igmp.stats");
 			return;
 		}
 		if (len < sizeof(igmpstat)) {
@@ -1170,7 +1291,7 @@ igmp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 			memset(&zerostat, 0, len);
 		if (sysctlbyname("net.inet.igmp.stats", &igmpstat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
-			warn("sysctl: net.inet.igmp.stats");
+			xo_warn("sysctl: net.inet.igmp.stats");
 			return;
 		}
 	} else {
@@ -1179,41 +1300,59 @@ igmp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 	}
 
 	if (igmpstat.igps_version != IGPS_VERSION_3) {
-		warnx("%s: version mismatch (%d != %d)", __func__,
+		xo_warnx("%s: version mismatch (%d != %d)", __func__,
 		    igmpstat.igps_version, IGPS_VERSION_3);
 	}
 	if (igmpstat.igps_len != IGPS_VERSION3_LEN) {
-		warnx("%s: size mismatch (%d != %d)", __func__,
+		xo_warnx("%s: size mismatch (%d != %d)", __func__,
 		    igmpstat.igps_len, IGPS_VERSION3_LEN);
 	}
 
-	printf("%s:\n", name);
+	xo_open_container(name);
+	xo_emit("{T:/%s}:\n", name);
 
 #define	p64(f, m) if (igmpstat.f || sflag <= 1) \
-    printf(m, (uintmax_t) igmpstat.f, plural(igmpstat.f))
+    xo_emit(m, (uintmax_t) igmpstat.f, plural(igmpstat.f))
 #define	py64(f, m) if (igmpstat.f || sflag <= 1) \
-    printf(m, (uintmax_t) igmpstat.f, pluralies(igmpstat.f))
-	p64(igps_rcv_total, "\t%ju message%s received\n");
-	p64(igps_rcv_tooshort, "\t%ju message%s received with too few bytes\n");
-	p64(igps_rcv_badttl, "\t%ju message%s received with wrong TTL\n");
-	p64(igps_rcv_badsum, "\t%ju message%s received with bad checksum\n");
-	py64(igps_rcv_v1v2_queries, "\t%ju V1/V2 membership quer%s received\n");
-	py64(igps_rcv_v3_queries, "\t%ju V3 membership quer%s received\n");
+    xo_emit(m, (uintmax_t) igmpstat.f, pluralies(igmpstat.f))
+	p64(igps_rcv_total, "\t{:received-messages/%ju} "
+	    "{N:/message%s received}\n");
+	p64(igps_rcv_tooshort, "\t{:dropped-too-short/%ju} "
+	    "{N:/message%s received with too few bytes}\n");
+	p64(igps_rcv_badttl, "\t{:dropped-wrong-ttl/%ju} "
+	    "{N:/message%s received with wrong TTL}\n");
+	p64(igps_rcv_badsum, "\t{:dropped-bad-checksum/%ju} "
+	    "{N:/message%s received with bad checksum}\n");
+	py64(igps_rcv_v1v2_queries, "\t{:received-membership-queries/%ju} "
+	     "{N:/V1\\/V2 membership quer%s received}\n");
+	py64(igps_rcv_v3_queries, "\t{:received-v3-membership-queries/%ju} "
+	     "{N:/V3 membership quer%s received}\n");
 	py64(igps_rcv_badqueries,
-	    "\t%ju membership quer%s received with invalid field(s)\n");
-	py64(igps_rcv_gen_queries, "\t%ju general quer%s received\n");
-	py64(igps_rcv_group_queries, "\t%ju group quer%s received\n");
-	py64(igps_rcv_gsr_queries, "\t%ju group-source quer%s received\n");
-	py64(igps_drop_gsr_queries, "\t%ju group-source quer%s dropped\n");
-	p64(igps_rcv_reports, "\t%ju membership report%s received\n");
+	    "\t{:dropped-membership-queries/%ju} "
+	     "{N:/membership quer%s received with invalid field(s)}\n");
+	py64(igps_rcv_gen_queries, "\t{:received-general-queries/%ju} "
+	     "{N:/general quer%s received}\n");
+	py64(igps_rcv_group_queries, "\t{:received-group-queries/%ju} "
+	     "{N:/group quer%s received}\n");
+	py64(igps_rcv_gsr_queries, "\t{:received-group-source-queries/%ju} "
+	     "{N:/group-source quer%s received}\n");
+	py64(igps_drop_gsr_queries, "\t{:dropped-group-source-queries/%ju} "
+	     "{N:/group-source quer%s dropped}\n");
+	p64(igps_rcv_reports, "\t{:received-membership-requests/%ju} "
+	    "{N:/membership report%s received}\n");
 	p64(igps_rcv_badreports,
-	    "\t%ju membership report%s received with invalid field(s)\n");
+	    "\t{:dropped-membership-reports/%ju} "
+	    "{N:/membership report%s received with invalid field(s)}\n");
 	p64(igps_rcv_ourreports,
-"\t%ju membership report%s received for groups to which we belong\n");
-        p64(igps_rcv_nora, "\t%ju V3 report%s received without Router Alert\n");
-        p64(igps_snd_reports, "\t%ju membership report%s sent\n");
+	    "\t{:received-membership-reports-matching/%ju} "
+	    "{N:/membership report%s received for groups to which we belong}\n");
+        p64(igps_rcv_nora, "\t{:received-v3-reports-no-router-alert/%ju} "
+	    "{N:/V3 report%s received without Router Alert}\n");
+        p64(igps_snd_reports, "\t{:sent-membership-reports/%ju} "
+	    "{N:/membership report%s sent}\n");
 #undef p64
 #undef py64
+	xo_close_container(name);
 }
 
 /*
@@ -1232,7 +1371,7 @@ pim_stats(u_long off __unused, const char *name, int af1 __unused,
 		if (sysctlbyname("net.inet.pim.stats", &pimstat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
 			if (errno != ENOENT)
-				warn("sysctl: net.inet.pim.stats");
+				xo_warn("sysctl: net.inet.pim.stats");
 			return;
 		}
 	} else {
@@ -1241,37 +1380,54 @@ pim_stats(u_long off __unused, const char *name, int af1 __unused,
 		kread_counters(off, &pimstat, len);
 	}
 
-	printf("%s:\n", name);
+	xo_open_container(name);
+	xo_emit("{T:/%s}:\n", name);
 
 #define	p(f, m) if (pimstat.f || sflag <= 1) \
-    printf(m, (uintmax_t)pimstat.f, plural(pimstat.f))
+    xo_emit(m, (uintmax_t)pimstat.f, plural(pimstat.f))
 #define	py(f, m) if (pimstat.f || sflag <= 1) \
-    printf(m, (uintmax_t)pimstat.f, pimstat.f != 1 ? "ies" : "y")
-	p(pims_rcv_total_msgs, "\t%ju message%s received\n");
-	p(pims_rcv_total_bytes, "\t%ju byte%s received\n");
-	p(pims_rcv_tooshort, "\t%ju message%s received with too few bytes\n");
-        p(pims_rcv_badsum, "\t%ju message%s received with bad checksum\n");
-	p(pims_rcv_badversion, "\t%ju message%s received with bad version\n");
-	p(pims_rcv_registers_msgs, "\t%ju data register message%s received\n");
-	p(pims_rcv_registers_bytes, "\t%ju data register byte%s received\n");
+    xo_emit(m, (uintmax_t)pimstat.f, pimstat.f != 1 ? "ies" : "y")
+	p(pims_rcv_total_msgs, "\t{:received-messages/%ju} "
+	  "{N:/message%s received}\n");
+	p(pims_rcv_total_bytes, "\t{:received-bytes/%ju} "
+	  "{N:/byte%s received}\n");
+	p(pims_rcv_tooshort, "\t{:dropped-too-short/%ju} "
+	  "{N:/message%s received with too few bytes}\n");
+        p(pims_rcv_badsum, "\t{:dropped-bad-checksum/%ju} "
+	  "{N:/message%s received with bad checksum}\n");
+	p(pims_rcv_badversion, "\t{:dropped-bad-version/%ju} "
+	  "{N:/message%s received with bad version}\n");
+	p(pims_rcv_registers_msgs, "\t{:received-data-register-messages/%ju} "
+	  "{N:/data register message%s received}\n");
+	p(pims_rcv_registers_bytes, "\t{:received-data-register-bytes/%ju} "
+	  "{N:/data register byte%s received}\n");
 	p(pims_rcv_registers_wrongiif,
-	    "\t%ju data register message%s received on wrong iif\n");
-	p(pims_rcv_badregisters, "\t%ju bad register%s received\n");
-	p(pims_snd_registers_msgs, "\t%ju data register message%s sent\n");
-	p(pims_snd_registers_bytes, "\t%ju data register byte%s sent\n");
+	    "\t{:received-data-register-wrong-interface/%ju} "
+	  "{N:/data register message%s received on wrong iif}\n");
+	p(pims_rcv_badregisters, "\t{:received-bad-registers/%ju} "
+	  "{N:/bad register%s received}\n");
+	p(pims_snd_registers_msgs, "\t{:sent-data-register-messages/%ju} "
+	  "{N:/data register message%s sent}\n");
+	p(pims_snd_registers_bytes, "\t{:sent-data-register-bytes/%ju} "
+	  "{N:/data register byte%s sent}\n");
 #undef p
 #undef py
+	xo_close_container(name);
 }
 
 /*
  * Pretty print an Internet address (net address + port).
  */
 void
-inetprint(struct in_addr *in, int port, const char *proto, int num_port)
+inetprint(const char *container, struct in_addr *in, int port,
+	  const char *proto, int num_port)
 {
 	struct servent *sp = 0;
 	char line[80], *cp;
 	int width;
+
+	if (container)
+		xo_open_container(container);
 
 	if (Wflag)
 	    sprintf(line, "%s.", inetname(in));
@@ -1286,9 +1442,16 @@ inetprint(struct in_addr *in, int port, const char *proto, int num_port)
 		sprintf(cp, "%d ", ntohs((u_short)port));
 	width = (Aflag && !Wflag) ? 18 : 22;
 	if (Wflag)
-	    printf("%-*s ", width, line);
+	    xo_emit("{d:target/%-*s} ", width, line);
 	else
-	    printf("%-*.*s ", width, width, line);
+	    xo_emit("{d:target/%-*.*s} ", width, width, line);
+
+	int alen = cp - line - 1, plen = strlen(cp) - 1;
+	xo_emit("{e:address/%*.*s}{e:port/%*.*s}", alen, alen, line,
+		plen, plen, cp);
+
+	if (container)
+		xo_close_container(container);
 }
 
 /*

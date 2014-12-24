@@ -68,6 +68,7 @@ __FBSDID("$FreeBSD$");
 #include <sysexits.h>
 #include <unistd.h>
 #include <err.h>
+#include <libxo/xo.h>
 #include "netstat.h"
 
 #define	kget(p, d) (kread((u_long)(p), (char *)&(d), sizeof (d)))
@@ -221,9 +222,9 @@ pr_family(int af1)
 		break;
 	}
 	if (afname)
-		printf("\n%s:\n", afname);
+		xo_emit("\n{k:address-family/%s}:\n", afname);
 	else
-		printf("\nProtocol Family %d:\n", af1);
+		xo_emit("\n{L:Protocol Family} {k:address-family/%d}:\n", af1);
 }
 
 /* column widths; each followed by one space */
@@ -360,7 +361,8 @@ pr_rthdr(int af1)
 			wid_if,		wid_if,		"Netif",
 			wid_expire,			"Expire");
 	} else {
-		printf("%-*.*s %-*.*s %-*.*s  %*.*s %*s\n",
+		xo_emit(
+		"{T:/%-*.*s} {T:/%-*.*s} {T:/%-*.*s}  {T:/%*.*s} {T:/%*s}\n",
 			wid_dst,	wid_dst,	"Destination",
 			wid_gw,		wid_gw,		"Gateway",
 			wid_flags,	wid_flags,	"Flags",
@@ -498,37 +500,41 @@ p_rtnode_kvm(void)
 
 	if (rnode.rn_bit < 0) {
 		if (rnode.rn_mask) {
-			printf("\t  mask ");
-			p_sockaddr(kgetsa((struct sockaddr *)rnode.rn_mask),
+			xo_emit("\t  {L:mask} ");
+			p_sockaddr("netmask",
+				   kgetsa((struct sockaddr *)rnode.rn_mask),
 				   NULL, 0, -1);
 		} else if (rm == 0)
 			return;
 	} else {
-		sprintf(nbuf, "(%d)", rnode.rn_bit);
-		printf("%6.6s %8.8lx : %8.8lx", nbuf, (u_long)rnode.rn_left, (u_long)rnode.rn_right);
+		xo_emit("{[:6}{:bit/(%d)}{]:} {:left-node/%8.8lx} "
+			": {:right-node/%8.8lx}",
+		       rnode.rn_bit, (u_long)rnode.rn_left, (u_long)rnode.rn_right);
 	}
 	while (rm) {
 		if (kget(rm, rmask) != 0)
 			break;
 		sprintf(nbuf, " %d refs, ", rmask.rm_refs);
-		printf(" mk = %8.8lx {(%d),%s",
+		xo_emit(" mk = {:node/%8.8lx} \\{({:bit/%d}),{nbufs/%s}",
 			(u_long)rm, -1 - rmask.rm_bit, rmask.rm_refs ? nbuf : " ");
 		if (rmask.rm_flags & RNF_NORMAL) {
 			struct radix_node rnode_aux;
-			printf(" <normal>, ");
+			xo_emit(" <{:mode/normal}>, ");
 			if (kget(rmask.rm_leaf, rnode_aux) == 0)
-				p_sockaddr(kgetsa((struct sockaddr *)rnode_aux.rn_mask),
+				p_sockaddr("netmask",
+				   kgetsa((struct sockaddr *)rnode_aux.rn_mask),
 				    NULL, 0, -1);
 			else
-				p_sockaddr(NULL, NULL, 0, -1);
+				p_sockaddr(NULL, NULL, NULL, 0, -1);
 		} else
-		    p_sockaddr(kgetsa((struct sockaddr *)rmask.rm_mask),
-				NULL, 0, -1);
-		putchar('}');
+		    p_sockaddr("netmask",
+			       kgetsa((struct sockaddr *)rmask.rm_mask),
+			       NULL, 0, -1);
+		xo_emit("\\}");
 		if ((rm = rmask.rm_mklist))
-			printf(" ->");
+			xo_emit(" {D:->}");
 	}
-	putchar('\n');
+	xo_emit("\n");
 }
 
 static void
@@ -798,7 +804,15 @@ fmt_sockaddr(struct sockaddr *sa, struct sockaddr *mask, int flags)
 static void
 p_flags(int f, const char *format)
 {
-	printf(format, fmt_flags(f));
+	struct bits *p;
+
+	xo_emit(format, fmt_flags(f));
+
+	xo_open_list("flag");
+	for (p = bits; p->b_mask; p++)
+		if (p->b_mask & f)
+		    xo_emit("{le:flag/%s}", p->b_name);
+	xo_close_list("flag");
 }
 
 static const char *
@@ -1022,7 +1036,7 @@ netname6(struct sockaddr_in6 *sa6, struct in6_addr *mask)
 			}
 		}
 		if (illegal)
-			fprintf(stderr, "illegal prefixlen\n");
+			xo_error("illegal prefixlen\n");
 	}
 	else
 		masklen = 128;

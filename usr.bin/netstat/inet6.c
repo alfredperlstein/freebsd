@@ -68,6 +68,7 @@ __FBSDID("$FreeBSD$");
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
+#include <libxo/xo.h>
 #include "netstat.h"
 
 struct	socket sockb;
@@ -372,153 +373,245 @@ ip6_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		if (sysctlbyname("net.inet6.ip6.stats", &ip6stat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
 			if (errno != ENOENT)
-				warn("sysctl: net.inet6.ip6.stats");
+				xo_warn("sysctl: net.inet6.ip6.stats");
 			return;
-		}
+ 		}
 	} else
 		kread_counters(off, &ip6stat, len);
-
-	printf("%s:\n", name);
+	xo_open_container(name);
+	xo_emit("{T:/%s}:\n", name);
 
 #define	p(f, m) if (ip6stat.f || sflag <= 1) \
-    printf(m, (uintmax_t)ip6stat.f, plural(ip6stat.f))
+    xo_emit(m, (uintmax_t)ip6stat.f, plural(ip6stat.f))
 #define	p1a(f, m) if (ip6stat.f || sflag <= 1) \
-    printf(m, (uintmax_t)ip6stat.f)
+    xo_emit(m, (uintmax_t)ip6stat.f)
 
-	p(ip6s_total, "\t%ju total packet%s received\n");
-	p1a(ip6s_toosmall, "\t%ju with size smaller than minimum\n");
-	p1a(ip6s_tooshort, "\t%ju with data size < data length\n");
-	p1a(ip6s_badoptions, "\t%ju with bad options\n");
-	p1a(ip6s_badvers, "\t%ju with incorrect version number\n");
-	p(ip6s_fragments, "\t%ju fragment%s received\n");
-	p(ip6s_fragdropped, "\t%ju fragment%s dropped (dup or out of space)\n");
-	p(ip6s_fragtimeout, "\t%ju fragment%s dropped after timeout\n");
-	p(ip6s_fragoverflow, "\t%ju fragment%s that exceeded limit\n");
-	p(ip6s_reassembled, "\t%ju packet%s reassembled ok\n");
-	p(ip6s_delivered, "\t%ju packet%s for this host\n");
-	p(ip6s_forward, "\t%ju packet%s forwarded\n");
-	p(ip6s_cantforward, "\t%ju packet%s not forwardable\n");
-	p(ip6s_redirectsent, "\t%ju redirect%s sent\n");
-	p(ip6s_localout, "\t%ju packet%s sent from this host\n");
-	p(ip6s_rawout, "\t%ju packet%s sent with fabricated ip header\n");
-	p(ip6s_odropped, "\t%ju output packet%s dropped due to no bufs, etc.\n");
-	p(ip6s_noroute, "\t%ju output packet%s discarded due to no route\n");
-	p(ip6s_fragmented, "\t%ju output datagram%s fragmented\n");
-	p(ip6s_ofragments, "\t%ju fragment%s created\n");
-	p(ip6s_cantfrag, "\t%ju datagram%s that can't be fragmented\n");
-	p(ip6s_badscope, "\t%ju packet%s that violated scope rules\n");
-	p(ip6s_notmember, "\t%ju multicast packet%s which we don't join\n");
+	p(ip6s_total, "\t{:received-packets/%ju} "
+	  "{N:/total packet%s received}\n");
+	p1a(ip6s_toosmall, "\t{:dropped-below-minimum-size/%ju} "
+	    "{N:/with size smaller than minimum}\n");
+	p1a(ip6s_tooshort, "\t{:dropped-short-packets/%ju} "
+	    "{N:/with data size < data length}\n");
+	p1a(ip6s_badoptions, "\t{:dropped-bad-options/%ju} "
+	    "{N:/with bad options}\n");
+	p1a(ip6s_badvers, "\t{:dropped-bad-version/%ju} "
+	    "{N:/with incorrect version number}\n");
+	p(ip6s_fragments, "\t{:received-fragments/%ju} "
+	  "{N:/fragment%s received}\n");
+	p(ip6s_fragdropped, "\t{:dropped-fragment/%ju} "
+	  "{N:/fragment%s dropped (dup or out of space)}\n");
+	p(ip6s_fragtimeout, "\t{:dropped-fragment-after-timeout/%ju} "
+	  "{N:/fragment%s dropped after timeout}\n");
+	p(ip6s_fragoverflow, "\t{:dropped-fragments-overflow/%ju} "
+	  "{N:/fragment%s that exceeded limit}\n");
+	p(ip6s_reassembled, "\t{:reassembled-packets/%ju} "
+	  "{N:/packet%s reassembled ok}\n");
+	p(ip6s_delivered, "\t{:received-local-packets/%ju} "
+	  "{N:/packet%s for this host}\n");
+	p(ip6s_forward, "\t{:forwarded-packets/%ju} "
+	  "{N:/packet%s forwarded}\n");
+	p(ip6s_cantforward, "\t{:packets-not-forwardable/%ju} "
+	  "{N:/packet%s not forwardable}\n");
+	p(ip6s_redirectsent, "\t{:sent-redirects/%ju} "
+	  "{N:/redirect%s sent}\n");
+	p(ip6s_localout, "\t{:sent-packets/%ju} "
+	  "{N:/packet%s sent from this host}\n");
+	p(ip6s_rawout, "\t{:send-packets-fabricated-header/%ju} "
+	  "{N:/packet%s sent with fabricated ip header}\n");
+	p(ip6s_odropped, "\t{:discard-no-mbufs/%ju} "
+	  "{N:/output packet%s dropped due to no bufs, etc.}\n");
+	p(ip6s_noroute, "\t{:discard-no-route/%ju} "
+	  "{N:/output packet%s discarded due to no route}\n");
+	p(ip6s_fragmented, "\t{:sent-fragments/%ju} "
+	  "{N:/output datagram%s fragmented}\n");
+	p(ip6s_ofragments, "\t{:fragments-created/%ju} "
+	  "{N:/fragment%s created}\n");
+	p(ip6s_cantfrag, "\t{:discard-cannot-fragment/%ju} "
+	  "{N:/datagram%s that can't be fragmented}\n");
+	p(ip6s_badscope, "\t{:discard-scope-violations/%ju} "
+	  "{N:/packet%s that violated scope rules}\n");
+	p(ip6s_notmember, "\t{:multicast-no-join-packets/%ju} "
+	  "{N:/multicast packet%s which we don't join}\n");
 	for (first = 1, i = 0; i < IP6S_HDRCNT; i++)
 		if (ip6stat.ip6s_nxthist[i] != 0) {
 			if (first) {
-				printf("\tInput histogram:\n");
+				xo_emit("\t{T:Input histogram}:\n");
+				xo_open_list("input-histogram");
 				first = 0;
 			}
-			printf("\t\t%s: %ju\n", ip6nh[i],
+			xo_open_instance("input-histogram");
+			xo_emit("\t\t{k:name/%s}: {:count/%ju}\n", ip6nh[i],
 			    (uintmax_t)ip6stat.ip6s_nxthist[i]);
+			xo_close_instance("input-histogram");
 		}
-	printf("\tMbuf statistics:\n");
-	printf("\t\t%ju one mbuf\n", (uintmax_t)ip6stat.ip6s_m1);
+	if (!first)
+		xo_open_list("input-histogram");
+
+	xo_open_container("mbuf-statistics");
+	xo_emit("\t{T:Mbuf statistics}:\n");
+	xo_emit("\t\t{:one-mbuf/%ju} "
+		"{N:/one mbuf}\n", (uintmax_t)ip6stat.ip6s_m1);
 	for (first = 1, i = 0; i < IP6S_M2MMAX; i++) {
 		char ifbuf[IFNAMSIZ];
 		if (ip6stat.ip6s_m2m[i] != 0) {
 			if (first) {
-				printf("\t\ttwo or more mbuf:\n");
+				xo_emit("\t\t{N:two or more mbuf}:\n");
+				xo_open_list("mbuf-data");
 				first = 0;
 			}
-			printf("\t\t\t%s= %ju\n",
-			    if_indextoname(i, ifbuf),
-			    (uintmax_t)ip6stat.ip6s_m2m[i]);
+			xo_open_instance("mbuf-data");
+			xo_emit("\t\t\t{k:name/%s}= {:count/%ju}\n",
+				if_indextoname(i, ifbuf),
+				(uintmax_t)ip6stat.ip6s_m2m[i]);
+			xo_close_instance("mbuf-data");
 		}
 	}
-	printf("\t\t%ju one ext mbuf\n",
+	if (!first)
+		xo_close_list("mbuf-data");
+	xo_emit("\t\t{:one-extra-mbuf/%ju} {N:one ext mbuf}\n",
 	    (uintmax_t)ip6stat.ip6s_mext1);
-	printf("\t\t%ju two or more ext mbuf\n",
-	    (uintmax_t)ip6stat.ip6s_mext2m);
+	xo_emit("\t\t{:two-or-more-extra-mbufs/%ju} "
+		"{N:/two or more ext mbuf}\n",
+		(uintmax_t)ip6stat.ip6s_mext2m);
+	xo_close_container("mbuf-statistics");
+
 	p(ip6s_exthdrtoolong,
-	    "\t%ju packet%s whose headers are not contiguous\n");
-	p(ip6s_nogif, "\t%ju tunneling packet%s that can't find gif\n");
+	  "\t{:dropped-header-too-long/%ju} "
+	  "{N:/packet%s whose headers are not contiguous}\n");
+	p(ip6s_nogif, "\t{:discard-tunnel-no-gif/%ju} "
+	  "{N:/tunneling packet%s that can't find gif}\n");
 	p(ip6s_toomanyhdr,
-	    "\t%ju packet%s discarded because of too many headers\n");
+	  "\t{:dropped-too-many-headers/%ju} "
+	  "{N:/packet%s discarded because of too many headers}\n");
 
 	/* for debugging source address selection */
 #define	PRINT_SCOPESTAT(s,i) do {\
 		switch(i) { /* XXX hardcoding in each case */\
 		case 1:\
-			p(s, "\t\t%ju interface-local%s\n");\
+			p(s, "\t\t{ke:name/interface-locals}{:count/%ju} " \
+			  "{N:/interface-local%s}\n");	\
 			break;\
 		case 2:\
-			p(s,"\t\t%ju link-local%s\n");\
+			p(s,"\t\t{ke:name/link-locals}{:count/%ju} " \
+			"{N:/link-local%s}\n"); \
 			break;\
 		case 5:\
-			p(s,"\t\t%ju site-local%s\n");\
+			p(s,"\t\t{ke:name/site-locals}{:count/%ju} " \
+			  "{N:/site-local%s}\n");\
 			break;\
 		case 14:\
-			p(s,"\t\t%ju global%s\n");\
+			p(s,"\t\t{ke:name/globals}{:count/%ju} " \
+			  "{N:/global%s}\n");\
 			break;\
 		default:\
-			printf("\t\t%ju addresses scope=%x\n",\
-			    (uintmax_t)ip6stat.s, i);\
+			xo_emit("\t\t{ke:name/%x}{:count/%ju} " \
+				"addresses scope=%x\n",\
+				i, (uintmax_t)ip6stat.s, i);	   \
 		}\
 	} while (0);
 
-	p(ip6s_sources_none,
-	  "\t%ju failure%s of source address selection\n");
+	xo_open_container("source-address-selection");
+	p(ip6s_sources_none, "\t{:address-selection-failures/%ju} "
+	  "{N:/failure%s of source address selection}\n");
+
 	for (first = 1, i = 0; i < IP6S_SCOPECNT; i++) {
 		if (ip6stat.ip6s_sources_sameif[i]) {
 			if (first) {
-				printf("\tsource addresses on an outgoing I/F\n");
+				xo_open_list("outgoing-interface");
+				xo_emit("\tsource addresses on an outgoing I/F\n");
 				first = 0;
 			}
+			xo_open_instance("outgoing-interface");
 			PRINT_SCOPESTAT(ip6s_sources_sameif[i], i);
+			xo_close_instance("outgoing-interface");
 		}
 	}
+	if (!first)
+		xo_close_list("outgoing-interface");
+
 	for (first = 1, i = 0; i < IP6S_SCOPECNT; i++) {
 		if (ip6stat.ip6s_sources_otherif[i]) {
 			if (first) {
-				printf("\tsource addresses on a non-outgoing I/F\n");
+				xo_open_list("non-outgoing-interface");
+				xo_emit("\tsource addresses on a non-outgoing I/F\n");
 				first = 0;
 			}
+			xo_open_instance("non-outgoing-interface");
 			PRINT_SCOPESTAT(ip6s_sources_otherif[i], i);
+			xo_close_instance("non-outgoing-interface");
 		}
 	}
+	if (!first)
+		xo_close_list("non-outgoing-interface");
+
 	for (first = 1, i = 0; i < IP6S_SCOPECNT; i++) {
 		if (ip6stat.ip6s_sources_samescope[i]) {
 			if (first) {
-				printf("\tsource addresses of same scope\n");
+				xo_open_list("same-source");
+				xo_emit("\tsource addresses of same scope\n");
 				first = 0;
 			}
+			xo_open_instance("same-source");
 			PRINT_SCOPESTAT(ip6s_sources_samescope[i], i);
+			xo_close_instance("same-source");
 		}
 	}
+	if (!first)
+		xo_close_list("same-source");
+
 	for (first = 1, i = 0; i < IP6S_SCOPECNT; i++) {
 		if (ip6stat.ip6s_sources_otherscope[i]) {
 			if (first) {
-				printf("\tsource addresses of a different scope\n");
+				xo_open_list("different-scope");
+				xo_emit("\tsource addresses of a different scope\n");
 				first = 0;
 			}
+			xo_open_instance("different-scope");
 			PRINT_SCOPESTAT(ip6s_sources_otherscope[i], i);
+			xo_close_instance("different-scope");
 		}
 	}
+	if (!first)
+		xo_close_list("different-scope");
+
 	for (first = 1, i = 0; i < IP6S_SCOPECNT; i++) {
 		if (ip6stat.ip6s_sources_deprecated[i]) {
 			if (first) {
-				printf("\tdeprecated source addresses\n");
+				xo_open_list("deprecated-source");
+				xo_emit("\tdeprecated source addresses\n");
 				first = 0;
 			}
+			xo_open_instance("deprecated-source");
 			PRINT_SCOPESTAT(ip6s_sources_deprecated[i], i);
+			xo_close_instance("deprecated-source");
 		}
 	}
+	if (!first)
+		xo_close_list("deprecated-source");
 
-	printf("\tSource addresses selection rule applied:\n");
-	for (i = 0; i < IP6S_RULESMAX; i++) {
-		if (ip6stat.ip6s_sources_rule[i])
-			printf("\t\t%ju %s\n",
-			       (uintmax_t)ip6stat.ip6s_sources_rule[i],
-			       srcrule_str[i]);
+	for (first = 1, i = 0; i < IP6S_RULESMAX; i++) {
+		if (ip6stat.ip6s_sources_rule[i]) {
+			if (first) {
+				xo_open_list("rules-applied");
+				xo_emit("\t{T:Source addresses selection rule applied}:\n");
+				first = 0;
+			}
+			xo_open_instance("rules-applied");
+			xo_emit("\t\t{ke:name/%s}{:count/%ju} {d:name/%s}\n",
+				srcrule_str[i],
+				(uintmax_t)ip6stat.ip6s_sources_rule[i],
+				srcrule_str[i]);
+			xo_close_instance("rules-applied");
+		}
 	}
+	if (!first)
+		xo_close_list("rules-applied");
+
+	xo_close_container("source-address-selection");
+
 #undef p
 #undef p1a
+	xo_close_container(name);
 }
 
 /*
@@ -854,76 +947,120 @@ icmp6_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		if (sysctlbyname("net.inet6.icmp6.stats", &icmp6stat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
 			if (errno != ENOENT)
-				warn("sysctl: net.inet6.icmp6.stats");
+				xo_warn("sysctl: net.inet6.icmp6.stats");
 			return;
 		}
 	} else
 		kread_counters(off, &icmp6stat, len);
 
-	printf("%s:\n", name);
+	xo_emit("{T:/%s}:\n", name);
+	xo_open_container(name);
 
 #define	p(f, m) if (icmp6stat.f || sflag <= 1) \
-    printf(m, (uintmax_t)icmp6stat.f, plural(icmp6stat.f))
+    xo_emit(m, (uintmax_t)icmp6stat.f, plural(icmp6stat.f))
 #define	p_5(f, m) if (icmp6stat.f || sflag <= 1) \
-    printf(m, (uintmax_t)icmp6stat.f)
+    xo_emit(m, (uintmax_t)icmp6stat.f)
 
-	p(icp6s_error, "\t%ju call%s to icmp6_error\n");
+	p(icp6s_error, "\t{:icmp6-calls/%ju} "
+	  "{N:/call%s to icmp6_error}\n");
 	p(icp6s_canterror,
-	    "\t%ju error%s not generated in response to an icmp6 message\n");
+	    "\t{:errors-not-generated-from-message/%ju} "
+	  "{N:/error%s not generated in response to an icmp6 message}\n");
 	p(icp6s_toofreq,
-	  "\t%ju error%s not generated because of rate limitation\n");
+	  "\t{:errors-discarded-by-rate-limitation/%ju} "
+	  "{N:/error%s not generated because of rate limitation}\n");
 #define	NELEM (int)(sizeof(icmp6stat.icp6s_outhist)/sizeof(icmp6stat.icp6s_outhist[0]))
 	for (first = 1, i = 0; i < NELEM; i++)
 		if (icmp6stat.icp6s_outhist[i] != 0) {
 			if (first) {
-				printf("\tOutput histogram:\n");
+				xo_open_list("output-histogram");
+				xo_emit("\t{T:Output histogram}:\n");
 				first = 0;
 			}
-			printf("\t\t%s: %ju\n", icmp6names[i],
-			    (uintmax_t)icmp6stat.icp6s_outhist[i]);
+			xo_open_instance("output-histogram");
+			xo_emit("\t\t{k:name/%s}: {:count/%ju}\n",
+			       icmp6names[i],
+			       (uintmax_t)icmp6stat.icp6s_outhist[i]);
+			xo_close_instance("output-histogram");
 		}
+	if (!first)
+		xo_close_list("output-histogram");
 #undef NELEM
-	p(icp6s_badcode, "\t%ju message%s with bad code fields\n");
-	p(icp6s_tooshort, "\t%ju message%s < minimum length\n");
-	p(icp6s_checksum, "\t%ju bad checksum%s\n");
-	p(icp6s_badlen, "\t%ju message%s with bad length\n");
+
+	p(icp6s_badcode, "\t{:dropped-bad-code/%ju} "
+	  "{N:/message%s with bad code fields}\n");
+	p(icp6s_tooshort, "\t{:dropped-too-short/%ju} "
+	  "{N:/message%s < minimum length}\n");
+	p(icp6s_checksum, "\t{:dropped-bad-checksum/%ju} "
+	  "{N:/bad checksum%s}\n");
+	p(icp6s_badlen, "\t{:dropped-bad-length/%ju} "
+	  "{N:/message%s with bad length}\n");
 #define	NELEM (int)(sizeof(icmp6stat.icp6s_inhist)/sizeof(icmp6stat.icp6s_inhist[0]))
 	for (first = 1, i = 0; i < NELEM; i++)
 		if (icmp6stat.icp6s_inhist[i] != 0) {
 			if (first) {
-				printf("\tInput histogram:\n");
+				xo_open_list("input-histogram");
+				xo_emit("\t{T:Input histogram}:\n");
 				first = 0;
 			}
-			printf("\t\t%s: %ju\n", icmp6names[i],
-			    (uintmax_t)icmp6stat.icp6s_inhist[i]);
+			xo_open_instance("input-histogram");
+			xo_emit("\t\t{k:name/%s}: {:count/%ju}\n",
+				icmp6names[i],
+				(uintmax_t)icmp6stat.icp6s_inhist[i]);
+			xo_close_instance("input-histogram");
 		}
+	if (!first)
+		xo_close_list("input-histogram");
 #undef NELEM
-	printf("\tHistogram of error messages to be generated:\n");
-	p_5(icp6s_odst_unreach_noroute, "\t\t%ju no route\n");
-	p_5(icp6s_odst_unreach_admin, "\t\t%ju administratively prohibited\n");
-	p_5(icp6s_odst_unreach_beyondscope, "\t\t%ju beyond scope\n");
-	p_5(icp6s_odst_unreach_addr, "\t\t%ju address unreachable\n");
-	p_5(icp6s_odst_unreach_noport, "\t\t%ju port unreachable\n");
-	p_5(icp6s_opacket_too_big, "\t\t%ju packet too big\n");
-	p_5(icp6s_otime_exceed_transit, "\t\t%ju time exceed transit\n");
-	p_5(icp6s_otime_exceed_reassembly, "\t\t%ju time exceed reassembly\n");
-	p_5(icp6s_oparamprob_header, "\t\t%ju erroneous header field\n");
-	p_5(icp6s_oparamprob_nextheader, "\t\t%ju unrecognized next header\n");
-	p_5(icp6s_oparamprob_option, "\t\t%ju unrecognized option\n");
-	p_5(icp6s_oredirect, "\t\t%ju redirect\n");
-	p_5(icp6s_ounknown, "\t\t%ju unknown\n");
+	xo_emit("\t{T:Histogram of error messages to be generated}:\n");
+	xo_open_container("errors");
+	p_5(icp6s_odst_unreach_noroute, "\t\t{:no-route/%ju} "
+	    "{N:/no route}\n");
+	p_5(icp6s_odst_unreach_admin, "\t\t{:admin-prohibited/%ju} "
+	    "{N:/administratively prohibited}\n");
+	p_5(icp6s_odst_unreach_beyondscope, "\t\t{:beyond-scope/%ju} "
+	    "{N:/beyond scope}\n");
+	p_5(icp6s_odst_unreach_addr, "\t\t{:address-unreachable/%ju} "
+	    "{N:/address unreachable}\n");
+	p_5(icp6s_odst_unreach_noport, "\t\t{:port-unreachable/%ju} "
+	    "{N:/port unreachable}\n");
+	p_5(icp6s_opacket_too_big, "\t\t{:packet-too-big/%ju} "
+	    "{N:/packet too big}\n");
+	p_5(icp6s_otime_exceed_transit, "\t\t{:time-exceed-transmit/%ju} "
+	    "{N:/time exceed transit}\n");
+	p_5(icp6s_otime_exceed_reassembly, "\t\t{:time-exceed-reassembly/%ju} "
+	    "{N:/time exceed reassembly}\n");
+	p_5(icp6s_oparamprob_header, "\t\t{:bad-header/%ju} "
+	    "{N:/erroneous header field}\n");
+	p_5(icp6s_oparamprob_nextheader, "\t\t{:bad-next-header/%ju} "
+	    "{N:/unrecognized next header}\n");
+	p_5(icp6s_oparamprob_option, "\t\t{:bad-option/%ju} "
+	    "{N:/unrecognized option}\n");
+	p_5(icp6s_oredirect, "\t\t{:redirects/%ju} "
+	    "{N:/redirect}\n");
+	p_5(icp6s_ounknown, "\t\t{:unknown/%ju} {N:unknown}\n");
 
-	p(icp6s_reflect, "\t%ju message response%s generated\n");
-	p(icp6s_nd_toomanyopt, "\t%ju message%s with too many ND options\n");
-	p(icp6s_nd_badopt, "\t%ju message%s with bad ND options\n");
-	p(icp6s_badns, "\t%ju bad neighbor solicitation message%s\n");
-	p(icp6s_badna, "\t%ju bad neighbor advertisement message%s\n");
-	p(icp6s_badrs, "\t%ju bad router solicitation message%s\n");
-	p(icp6s_badra, "\t%ju bad router advertisement message%s\n");
-	p(icp6s_badredirect, "\t%ju bad redirect message%s\n");
-	p(icp6s_pmtuchg, "\t%ju path MTU change%s\n");
+	p(icp6s_reflect, "\t{:reflect/%ju} "
+	  "{N:/message response%s generated}\n");
+	p(icp6s_nd_toomanyopt, "\t{:too-many-nd-options/%ju} "
+	  "{N:/message%s with too many ND options}\n");
+	p(icp6s_nd_badopt, "\t{:bad-nd-options/%ju} "
+	  "{N:/message%s with bad ND options}\n");
+	p(icp6s_badns, "\t{:bad-neighbor-solicitation/%ju} "
+	  "{N:/bad neighbor solicitation message%s}\n");
+	p(icp6s_badna, "\t{:bad-neighbor-advertisement/%ju} "
+	  "{N:/bad neighbor advertisement message%s}\n");
+	p(icp6s_badrs, "\t{:bad-router-solicitation/%ju} "
+	  "{N:/bad router solicitation message%s}\n");
+	p(icp6s_badra, "\t{:bad-router-advertisement/%ju} "
+	  "{N:/bad router advertisement message%s}\n");
+	p(icp6s_badredirect, "\t{:bad-redirect/%ju} "
+	  "{N:/bad redirect message%s}\n");
+	xo_close_container("errors");
+	p(icp6s_pmtuchg, "\t{:path-mtu-changes/%ju} {N:/path MTU change%s}\n");
 #undef p
 #undef p_5
+	xo_close_container(name);
 }
 
 /*
@@ -1008,7 +1145,7 @@ pim6_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		if (sysctlbyname("net.inet6.pim.stats", &pim6stat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
 			if (errno != ENOENT)
-				warn("sysctl: net.inet6.pim.stats");
+				xo_warn("sysctl: net.inet6.pim.stats");
 			return;
 		}
 	} else {
@@ -1017,18 +1154,27 @@ pim6_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		kread(off, &pim6stat, len);
 	}
 
-	printf("%s:\n", name);
+	xo_emit("{T:/%s}:\n", name);
+	xo_open_container(name);
 
 #define	p(f, m) if (pim6stat.f || sflag <= 1) \
-    printf(m, (uintmax_t)pim6stat.f, plural(pim6stat.f))
-	p(pim6s_rcv_total, "\t%ju message%s received\n");
-	p(pim6s_rcv_tooshort, "\t%ju message%s received with too few bytes\n");
-	p(pim6s_rcv_badsum, "\t%ju message%s received with bad checksum\n");
-	p(pim6s_rcv_badversion, "\t%ju message%s received with bad version\n");
-	p(pim6s_rcv_registers, "\t%ju register%s received\n");
-	p(pim6s_rcv_badregisters, "\t%ju bad register%s received\n");
-	p(pim6s_snd_registers, "\t%ju register%s sent\n");
+    xo_emit(m, (uintmax_t)pim6stat.f, plural(pim6stat.f))
+	p(pim6s_rcv_total, "\t{:received-packets/%ju} "
+	  "{N:/message%s received}\n");
+	p(pim6s_rcv_tooshort, "\t{:dropped-too-short/%ju} "
+	  "{N:/message%s received with too few bytes}\n");
+	p(pim6s_rcv_badsum, "\t{:dropped-bad-checksum/%ju} "
+	  "{N:/message%s received with bad checksum}\n");
+	p(pim6s_rcv_badversion, "\t{:dropped-bad-version/%ju} "
+	  "{N:/message%s received with bad version}\n");
+	p(pim6s_rcv_registers, "\t{:received-registers/%ju} "
+	  "{N:/register%s received}\n");
+	p(pim6s_rcv_badregisters, "\t{:received-bad-registers/%ju} "
+	  "{N:/bad register%s received}\n");
+	p(pim6s_snd_registers, "\t{:sent-registers/%ju} "
+	  "{N:/register%s sent}\n");
 #undef p
+	xo_close_container(name);
 }
 
 /*
@@ -1048,33 +1194,43 @@ rip6_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		if (sysctlbyname("net.inet6.ip6.rip6stats", &rip6stat, &len,
 		    zflag ? &zerostat : NULL, zflag ? len : 0) < 0) {
 			if (errno != ENOENT)
-				warn("sysctl: net.inet6.ip6.rip6stats");
+				xo_warn("sysctl: net.inet6.ip6.rip6stats");
 			return;
 		}
 	} else
 		kread_counters(off, &rip6stat, len);
 
-	printf("%s:\n", name);
+	xo_emit("{T:/%s}:\n", name);
+	xo_open_container(name);
 
 #define	p(f, m) if (rip6stat.f || sflag <= 1) \
-    printf(m, (uintmax_t)rip6stat.f, plural(rip6stat.f))
-	p(rip6s_ipackets, "\t%ju message%s received\n");
-	p(rip6s_isum, "\t%ju checksum calculation%s on inbound\n");
-	p(rip6s_badsum, "\t%ju message%s with bad checksum\n");
-	p(rip6s_nosock, "\t%ju message%s dropped due to no socket\n");
+    xo_emit(m, (uintmax_t)rip6stat.f, plural(rip6stat.f))
+	p(rip6s_ipackets, "\t{:received-packets/%ju} "
+	  "{N:/message%s received}\n");
+	p(rip6s_isum, "\t{:input-checksum-computation/%ju} "
+	  "{N:/checksum calculation%s on inbound}\n");
+	p(rip6s_badsum, "\t{:received-bad-checksum/%ju} "
+	  "{N:/message%s with bad checksum}\n");
+	p(rip6s_nosock, "\t{:dropped-no-socket/%ju} "
+	  "{N:/message%s dropped due to no socket}\n");
 	p(rip6s_nosockmcast,
-	    "\t%ju multicast message%s dropped due to no socket\n");
+	    "\t{:dropped-multicast-no-socket/%ju} "
+	  "{N:/multicast message%s dropped due to no socket}\n");
 	p(rip6s_fullsock,
-	    "\t%ju message%s dropped due to full socket buffers\n");
+	    "\t{:dropped-full-socket-buffer/%ju} "
+	  "{N:/message%s dropped due to full socket buffers}\n");
 	delivered = rip6stat.rip6s_ipackets -
 		    rip6stat.rip6s_badsum -
 		    rip6stat.rip6s_nosock -
 		    rip6stat.rip6s_nosockmcast -
 		    rip6stat.rip6s_fullsock;
 	if (delivered || sflag <= 1)
-		printf("\t%ju delivered\n", (uintmax_t)delivered);
-	p(rip6s_opackets, "\t%ju datagram%s output\n");
+		xo_emit("\t{:delivered-packets/%ju} "
+			"{N:/delivered}\n", (uintmax_t)delivered);
+	p(rip6s_opackets, "\t{:sent-packets/%ju} "
+	  "{N:/datagram%s output}\n");
 #undef p
+	xo_close_container(name);
 }
 
 /*
@@ -1092,11 +1248,15 @@ rip6_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 };
 
 void
-inet6print(struct in6_addr *in6, int port, const char *proto, int numeric)
+inet6print(const char *container, struct in6_addr *in6, int port,
+	   const char *proto, int numeric)
 {
 	struct servent *sp = 0;
 	char line[80], *cp;
 	int width;
+
+	if (container)
+		xo_open_container(container);
 
 	sprintf(line, "%.*s.", Wflag ? 39 :
 		(Aflag && !numeric) ? 12 : 16, inet6name(in6));
@@ -1108,7 +1268,15 @@ inet6print(struct in6_addr *in6, int port, const char *proto, int numeric)
 	else
 		sprintf(cp, "%d", ntohs((u_short)port));
 	width = Wflag ? 45 : Aflag ? 18 : 22;
-	printf("%-*.*s ", width, width, line);
+
+	xo_emit("{d:target/%-*.*s} ", width, width, line);
+
+	int alen = cp - line - 1, plen = strlen(cp) - 1;
+	xo_emit("{e:address/%*.*s}{e:port/%*.*s}", alen, alen, line,
+		plen, plen, cp);
+
+	if (container)
+		xo_close_container(container);
 }
 
 /*

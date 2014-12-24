@@ -56,6 +56,7 @@ __FBSDID("$FreeBSD$");
 #include <string.h>
 #include <unistd.h>
 #include <err.h>
+#include <libxo/xo.h>
 #include "netstat.h"
 
 static	int first = 1;
@@ -106,10 +107,11 @@ netgraphprotopr(u_long off, const char *name, int af1 __unused,
 
 		/* Do headline */
 		if (first) {
-			printf("Netgraph sockets\n");
+			xo_emit("{T:Netgraph sockets}\n");
 			if (Aflag)
-				printf("%-8.8s ", "PCB");
-			printf("%-5.5s %-6.6s %-6.6s %-14.14s %s\n",
+				xo_emit("{T:/%-8.8s} ", "PCB");
+			xo_emit(
+		"{T:/%-5.5s} {T:/%-6.6s} {T:/%-6.6s} {T:/%-14.14s} {T:/%s}\n",
 			    "Type", "Recv-Q", "Send-Q",
 			    "Node Address", "#Hooks");
 			first = 0;
@@ -134,9 +136,9 @@ netgraphprotopr(u_long off, const char *name, int af1 __unused,
 		/* Display associated node info */
 		if (*ni->name != '\0')
 			snprintf(path, sizeof(path), "%s:", ni->name);
-		printf("%-14.14s %4d", path, ni->hooks);
+		xo_emit("{t:path/%-14.14s} {:hooks/%4d}", path, ni->hooks);
 finish:
-		putchar('\n');
+		xo_emit("\n");
 	}
 }
 
