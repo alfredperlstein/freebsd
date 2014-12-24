@@ -321,6 +321,8 @@ main(int argc, char *argv[])
 
 	af = AF_UNSPEC;
 
+	argc = xo_parse_args(argc, argv);
+
 	while ((ch = getopt(argc, argv, "46AaBbdF:f:ghI:iLlM:mN:np:Qq:RrSTsuWw:xz"))
 	    != -1)
 		switch(ch) {
@@ -540,19 +542,26 @@ main(int argc, char *argv[])
 	 */
 #endif
 	if (iflag && !sflag) {
+		xo_open_container("statistics");
 		intpr(interval, NULL, af);
+		xo_close_container("statistics");
+		xo_finish();
 		exit(0);
 	}
 	if (rflag) {
+		xo_open_container("statistics");
 		if (sflag) {
 			rt_stats();
 			flowtable_stats();
 		} else
 			routepr(fib, af);
+		xo_close_container("statistics");
+		xo_finish();
 		exit(0);
 	}
 
 	if (gflag) {
+		xo_open_container("statistics");
 		if (sflag) {
 			if (af == AF_INET || af == AF_UNSPEC)
 				mrt_stats();
@@ -568,6 +577,8 @@ main(int argc, char *argv[])
 				mroute6pr();
 #endif
 		}
+		xo_close_container("statistics");
+		xo_finish();
 		exit(0);
 	}
 
@@ -575,9 +586,14 @@ main(int argc, char *argv[])
 	kresolve_list(nl);
 
 	if (tp) {
+		xo_open_container("statistics");
 		printproto(tp, tp->pr_name);
+		xo_close_container("statistics");
+		xo_finish();
 		exit(0);
 	}
+
+	xo_open_container("statistics");
 	if (af == AF_INET || af == AF_UNSPEC)
 		for (tp = protox; tp->pr_name; tp++)
 			printproto(tp, tp->pr_name);
@@ -689,7 +705,7 @@ kvmd_init(void)
 	setgid(getgid());
 
 	if (kvmd == NULL) {
-		warnx("kvm not available: %s", errbuf);
+		xo_warnx("kvm not available: %s", errbuf);
 		return (-1);
 	}
 
@@ -711,10 +727,10 @@ kresolve_list(struct nlist *_nl)
 
 	if (kvm_nlist(kvmd, _nl) < 0) {
 		if (nlistf)
-			errx(1, "%s: kvm_nlist: %s", nlistf,
+			xo_errx(1, "%s: kvm_nlist: %s", nlistf,
 			     kvm_geterr(kvmd));
 		else
-			errx(1, "kvm_nlist: %s", kvm_geterr(kvmd));
+			xo_errx(1, "kvm_nlist: %s", kvm_geterr(kvmd));
 	}
 
 	return (0);
@@ -840,7 +856,7 @@ name2protox(const char *name)
 static void
 usage(void)
 {
-	(void)fprintf(stderr, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
+	(void)xo_error("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
 "usage: netstat [-46AaLnRSTWx] [-f protocol_family | -p protocol]\n"
 "               [-M core] [-N system]",
 "       netstat -i | -I interface [-46abdhnW] [-f address_family]\n"
