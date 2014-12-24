@@ -74,7 +74,7 @@ netgraphprotopr(u_long off, const char *name, int af1 __unused,
 	/* If symbol not found, try looking in the KLD module */
 	if (off == 0) {
 		if (debug)
-			fprintf(stderr,
+			xo_warnx(
 			    "Error reading symbols from ng_socket.ko");
 		return;
 	}
@@ -119,9 +119,10 @@ netgraphprotopr(u_long off, const char *name, int af1 __unused,
 
 		/* Show socket */
 		if (Aflag)
-			printf("%8lx ", (u_long) this);
-		printf("%-5.5s %6u %6u ",
-		    name, sockb.so_rcv.sb_ccc, sockb.so_snd.sb_ccc);
+			xo_emit("{:address/%8lx} ", (u_long) this);
+		xo_emit("{t:name/%-5.5s} {:receive-bytes-waiting/%6u} "
+			"{:send-byte-waiting/%6u} ",
+			name, sockb.so_rcv.sb_ccc, sockb.so_snd.sb_ccc);
 
 		/* Get info on associated node */
 		if (ngpcb.node_id == 0 || csock == -1)
