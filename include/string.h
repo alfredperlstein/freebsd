@@ -89,6 +89,7 @@ char	*strerror(int);
 int	 strerror_r(int, char *, size_t);
 #endif
 #if __BSD_VISIBLE
+int	 strerror_dup(int, char **, bool *;
 size_t	 strlcat(char * __restrict, const char * __restrict, size_t);
 size_t	 strlcpy(char * __restrict, const char * __restrict, size_t);
 #endif

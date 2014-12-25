@@ -41,6 +41,7 @@ __FBSDID("$FreeBSD$");
 #include <errno.h>
 #include <string.h>
 #include <stdio.h>
+#include <stdbool.h>
 
 #include "errlst.h"
 
@@ -125,4 +126,40 @@ strerror(int num)
 	if (strerror_r(num, ebuf, sizeof(ebuf)) != 0)
 		errno = EINVAL;
 	return (ebuf);
+}
+
+int
+strerror_dup(int num, char **rp, bool *validp)
+{
+	char *ebuf;
+	int rv;
+	int saved_errno;
+
+	rv = 0;
+	*validp = false;
+	saved_errno = errno;
+	ebuf = malloc(NL_TEXTMAX);
+	if (ebuf == NULL) {
+		rv = ENOMEM;
+		goto out;
+	}
+	rv = strerror_r(num, ebuf, sizeof(ebuf));
+	if (rv == 0) {
+		*validp = true;
+	} else if (rv == EINVAL) {
+		/*
+		 * Invalid errno, but since we made the return string
+		 * we don't throw an error, makes easier from caller
+		 * perspective.
+		 */
+		rv = 0;	
+	} else {
+		/* should never happen NL_TEXTMAX is huge */
+		free(ebuf);
+		ebuf = NULL;
+	}
+out:
+	*rp = ebuf;
+	errno = saved_errno;
+	return rv;
 }
