@@ -718,27 +718,15 @@ p_sockaddr(const char *name, struct sockaddr *sa, struct sockaddr *mask,
 		snprintf(buf, sizeof(buf), "{:%s/%%s} ", name);
 		xo_emit(buf, cp);
 	} else {
-#if 0
 		if (numeric_addr) {
-			snprintf(buf, sizeof(buf), "{:%s/%%s}", name);
-			//fprintf(stderr, "fmt1: %s %s\n", buf, cp);
+			snprintf(buf, sizeof(buf), "{[:%d}{:%s/%%s}{]:} ", -width, name);
+			//fprintf(stderr, "** fmt1: %s %s **\n", buf, cp);
 			xo_emit(buf, cp);
 		} else {
-			snprintf(buf, sizeof(buf), "{:%s/%%-.*s}", name);
-			//fprintf(stderr, "fmt2: %s %s\n", buf, cp);
+			snprintf(buf, sizeof(buf), "{[:%d}{:%s/%%-.*s}{]:} ", -width, name);
+			//fprintf(stderr, "** fmt2: %s %s **\n", buf, cp);
 			xo_emit(buf, width, cp);
-		}			
-#else
-		if (numeric_addr) {
-			snprintf(buf, sizeof(buf), "{[:/%d}{:%s/%%s}{:]}", -width, name);
-			fprintf(stderr, "** fmt1: %s %s **\n", buf, cp);
-			xo_emit(buf, cp);
-		} else {
-			snprintf(buf, sizeof(buf), "{[:/%d}{:%s/%%-.*s}{:]}", -width, name);
-			fprintf(stderr, "** fmt2: %s %s **\n", buf, cp);
-			xo_emit(buf, width, cp);
-		}			
-#endif
+		}
 	}
 }
 
