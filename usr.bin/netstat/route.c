@@ -445,8 +445,8 @@ p_rtable_kvm(int fibnum, int af)
 			}
 		} else if (af == AF_UNSPEC || af == fam) {
 			size_cols(fam, head.rnh_treetop);
-			xo_open_container("route-table");
 			pr_family(fam);
+			xo_open_container("route-table");
 			do_rtent = 1;
 			pr_rthdr(fam);
 			xo_open_list("rt-entry");
@@ -613,6 +613,8 @@ p_rtable_sysctl(int fibnum, int af)
 	if (sysctl(mib, nitems(mib), buf, &needed, NULL, 0) < 0)
 		err(1, "sysctl: net.route.0.%d.dump.%d", af, fibnum);
 	lim  = buf + needed;
+	xo_open_container("route-table");
+	xo_open_list("rt-family");
 	for (next = buf; next < lim; next += rtm->rtm_msglen) {
 		rtm = (struct rt_msghdr *)next;
 		if (rtm->rtm_version != RTM_VERSION)
@@ -625,21 +627,26 @@ p_rtable_sysctl(int fibnum, int af)
 		if (fam != sa->sa_family) {
 			if (need_table_close) {
 			    xo_close_list("rt-entry");
-			    xo_close_container("route-table");
+			    xo_close_instance("rt-family");
 			}
-			xo_open_container("route-table");
-			xo_open_list("rt-entry");
 			need_table_close = true;
 
 			fam = sa->sa_family;
 			size_cols(fam, NULL);
+			xo_open_instance("rt-family");
 			pr_family(fam);
+			xo_open_list("rt-entry");
+
 			pr_rthdr(fam);
 		}
 		p_rtentry_sysctl("rt-entry", rtm);
 	}
-	if (need_table_close)
-		xo_close_container("route-table");
+	if (need_table_close) {
+	    xo_close_list("rt-entry");
+	    xo_close_instance("rt-family");
+	}
+	xo_close_list("rt-family");
+	xo_close_container("route-table");
 	free(buf);
 }
 
