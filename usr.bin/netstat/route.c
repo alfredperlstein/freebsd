@@ -399,6 +399,7 @@ p_rtable_kvm(int fibnum, int af)
 	struct radix_node_head **rt_tables;
 	u_long rtree;
 	int fam, af_size;
+	bool did_rt_family = false;
 
 	kresolve_list(rl);
 	if ((rtree = rl[N_RTREE].n_value) == 0) {
@@ -414,6 +415,7 @@ p_rtable_kvm(int fibnum, int af)
 	if (kread((u_long)(rtree), (char *)(rt_tables) + fibnum * af_size,
 	    af_size) != 0)
 		err(EX_OSERR, "error retrieving radix pointers");
+	xo_open_container("route-table");
 	for (fam = 0; fam <= AF_MAX; fam++) {
 		int tmpfib;
 
@@ -444,17 +446,25 @@ p_rtable_kvm(int fibnum, int af)
 				xo_close_list("netmasks");
 			}
 		} else if (af == AF_UNSPEC || af == fam) {
+			if (!did_rt_family) {
+				xo_open_list("rt-family");
+				did_rt_family = true;
+			}
 			size_cols(fam, head.rnh_treetop);
+			xo_open_instance("rt-family");
 			pr_family(fam);
-			xo_open_container("route-table");
 			do_rtent = 1;
-			pr_rthdr(fam);
 			xo_open_list("rt-entry");
+			pr_rthdr(fam);
 			p_rtree_kvm("rt-entry", head.rnh_treetop);
 			xo_close_list("rt-entry");
-			xo_close_container("route-table");
+			xo_close_instance("rt-family");
 		}
 	}
+	if (did_rt_family) {
+	    xo_close_list("rt-family");
+	}
+	xo_close_container("route-table");
 
 	free(rt_tables);
 }
@@ -466,36 +476,54 @@ p_rtable_kvm(int fibnum, int af)
 static void
 p_rtree_kvm(const char *name, struct radix_node *rn)
 {
+	bool opened;
 
+	opened = false;
+
+#define DOOPEN()    do { if (!opened) { xo_open_instance(name); opened = true; } } while (0)
+#define DOCLOSE()   do { if (opened) { opened = false; xo_close_instance(name); } } while(0)
 again:
 	if (kget(rn, rnode) != 0)
 		return;
 	if (!(rnode.rn_flags & RNF_ACTIVE))
 		return;
 	if (rnode.rn_bit < 0) {
-		if (Aflag)
-			xo_emit("{:radix-node/%-8.8lx} ", (u_long)rn);
+		if (Aflag) {
+			DOOPEN();
+			xo_emit("{q:radix-node/%-8.8lx} ", (u_long)rn);
+		}
 		if (rnode.rn_flags & RNF_ROOT) {
-			if (Aflag)
+			if (Aflag) {
+				DOOPEN();
 				xo_emit("({:root/root} node){L:/%s}",
 				    rnode.rn_dupedkey ? " =>\n" : "\n");
+			}
 		} else if (do_rtent) {
 			if (kget(rn, rtentry) == 0) {
+				DOOPEN();
 				p_rtentry_kvm(name, &rtentry);
-				if (Aflag)
+				if (Aflag) {
+					DOOPEN();
 					p_rtnode_kvm();
+					DOCLOSE();
+				}
 			}
 		} else {
+			DOOPEN();
 			p_sockaddr("address", kgetsa((struct sockaddr *)rnode.rn_key),
 				   NULL, 0, 44);
 			xo_emit("\n");
 		}
-		if ((rn = rnode.rn_dupedkey))
+		DOCLOSE();
+		if ((rn = rnode.rn_dupedkey)) {
 			goto again;
+		}
 	} else {
 		if (Aflag && do_rtent) {
-			xo_emit("{:radix-node/%-8.8lx} ", (u_long)rn);
+			DOOPEN();
+			xo_emit("{q:radix-node/%-8.8lx} ", (u_long)rn);
 			p_rtnode_kvm();
+			DOCLOSE();
 		}
 		rn = rnode.rn_right;
 		p_rtree_kvm(name, rnode.rn_left);
@@ -519,15 +547,15 @@ p_rtnode_kvm(void)
 		} else if (rm == 0)
 			return;
 	} else {
-		xo_emit("{[:6}{:bit/(%d)}{]:} {:left-node/%8.8lx} "
-			": {:right-node/%8.8lx}",
+		xo_emit("{[:6}{:bit/(%d)}{]:} {q:left-node/%8.8lx} "
+			": {q:right-node/%8.8lx}",
 		       rnode.rn_bit, (u_long)rnode.rn_left, (u_long)rnode.rn_right);
 	}
 	while (rm) {
 		if (kget(rm, rmask) != 0)
 			break;
 		sprintf(nbuf, " %d refs, ", rmask.rm_refs);
-		xo_emit(" mk = {:node/%8.8lx} \\{({:bit/%d}),{nbufs/%s}",
+		xo_emit(" mk = {q:node/%8.8lx} \\{({:bit/%d}),{nbufs/%s}",
 			(u_long)rm, -1 - rmask.rm_bit, rmask.rm_refs ? nbuf : " ");
 		if (rmask.rm_flags & RNF_NORMAL) {
 			struct radix_node rnode_aux;
