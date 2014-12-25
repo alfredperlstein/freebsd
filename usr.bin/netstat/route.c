@@ -896,13 +896,13 @@ p_rtentry_kvm(const char *name, struct rtentry *rt)
 	snprintf(buffer, sizeof(buffer), "%%-%d.%ds ", wid_flags, wid_flags);
 	p_flags(rt->rt_flags, buffer);
 	if (Wflag) {
-		printf("%*ju ", wid_pksent,
+		xo_emit("{[:%d}{t:use/%ju}{]:} ", -wid_pksent,
 		    (uintmax_t )kread_counter((u_long )rt->rt_pksent));
 
 		if (rt->rt_mtu != 0)
-			printf("%*lu ", wid_mtu, rt->rt_mtu);
+			xo_emit("{t:mtu/%*lu} ", wid_mtu, rt->rt_mtu);
 		else
-			printf("%*s ", wid_mtu, "");
+			xo_emit("{P:/%*s} ", wid_mtu, "");
 	}
 	if (rt->rt_ifp) {
 		if (rt->rt_ifp != lastif) {
@@ -913,18 +913,19 @@ p_rtentry_kvm(const char *name, struct rtentry *rt)
 				strlcpy(prettyname, "---", sizeof(prettyname));
 			lastif = rt->rt_ifp;
 		}
-		printf("%*.*s", wid_if, wid_if, prettyname);
+		xo_emit("{t:interface-name/%*.*s}", wid_if, wid_if, prettyname);
 		if (rt->rt_expire) {
 			time_t expire_time;
 
 			if ((expire_time =
 			    rt->rt_expire - uptime.tv_sec) > 0)
-				printf(" %*d", wid_expire, (int)expire_time);
+				xo_emit(" {:expire-time/%*d}",
+				    wid_expire, (int)expire_time);
 		}
 		if (rt->rt_nodes[0].rn_dupedkey)
-			printf(" =>");
+			xo_emit(" =>");
 	}
-	putchar('\n');
+	xo_emit("\n");
 }
 
 char *
