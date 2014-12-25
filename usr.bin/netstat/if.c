@@ -618,6 +618,7 @@ loop:
 
 	fill_iftot(new);
 
+	xo_open_instance("stats");
 	show_stat("lu", 10, "received-packets",
 	    new->ift_ip - old->ift_ip, 1);
 	show_stat("lu", 5, "received-errors",
@@ -637,6 +638,7 @@ loop:
 	if (dflag)
 		show_stat("LSlu", 5, "dropped-packets",
 		    new->ift_od - old->ift_od, 1);
+	xo_close_instance("stats");
 	xo_emit("\n");
 	xo_flush();
 
