@@ -1,0 +1,96 @@
+@@ -348,6 +349,8 @@
+ 
+ 	af = AF_UNSPEC;
+ 
++	argc = xo_parse_args(argc, argv);
++
+ 	while ((ch = getopt(argc, argv, "AaBbdF:f:ghI:iLlM:mN:np:Qq:rSTsuWw:xz"))
+ 	    != -1)
+ 		switch(ch) {
+@@ -549,19 +555,27 @@
+ 	 * used for the queries, which is slower.
+ 	 */
+ #endif
++
+ 	kread(0, NULL, 0);
+ 	if (iflag && !sflag) {
++		xo_open_container("statistics");
+ 		intpr(interval, nl[N_IFNET].n_value, NULL);
++		xo_close_container("statistics");
++		xo_finish();
+ 		exit(0);
+ 	}
+ 	if (rflag) {
++		xo_open_container("statistics");
+ 		if (sflag)
+ 			rt_stats(nl[N_RTSTAT].n_value, nl[N_RTTRASH].n_value);
+ 		else
+ 			routepr(nl[N_RTREE].n_value, fib);
++		xo_close_container("statistics");
++		xo_finish();
+ 		exit(0);
+ 	}
+ 	if (gflag) {
++		xo_open_container("statistics");
+ 		if (sflag) {
+ 			if (af == AF_INET || af == AF_UNSPEC)
+ 				mrt_stats(nl[N_MRTSTAT].n_value);
+@@ -580,13 +594,20 @@
+ 					  nl[N_MIF6TABLE].n_value);
+ #endif
+ 		}
++		xo_close_container("statistics");
++		xo_finish();
+ 		exit(0);
+ 	}
+ 
+ 	if (tp) {
++		xo_open_container("statistics");
+ 		printproto(tp, tp->pr_name);
++		xo_close_container("statistics");
++		xo_finish();
+ 		exit(0);
+ 	}
++
++	xo_open_container("statistics");
+ 	if (af == AF_INET || af == AF_UNSPEC)
+ 		for (tp = protox; tp->pr_name; tp++)
+ 			printproto(tp, tp->pr_name);
+@@ -673,23 +707,23 @@
+ 	setgid(getgid());
+ 
+ 	if (kvmd == NULL) {
+-		warnx("kvm not available: %s", errbuf);
++		xo_warnx("kvm not available: %s", errbuf);
+ 		return (-1);
+ 	}
+ 
+ 	if (kvm_nlist(kvmd, nl) < 0) {
+ 		if (nlistf)
+-			errx(1, "%s: kvm_nlist: %s", nlistf,
++			xo_errx(1, "%s: kvm_nlist: %s", nlistf,
+ 			     kvm_geterr(kvmd));
+ 		else
+-			errx(1, "kvm_nlist: %s", kvm_geterr(kvmd));
++			xo_errx(1, "kvm_nlist: %s", kvm_geterr(kvmd));
+ 	}
+ 
+ 	if (nl[0].n_type == 0) {
+ 		if (nlistf)
+-			errx(1, "%s: no namelist", nlistf);
++			xo_errx(1, "%s: no namelist", nlistf);
+ 		else
+-			errx(1, "no namelist");
++			xo_errx(1, "no namelist");
+ 	}
+ 
+ 	return (0);
+@@ -833,7 +867,7 @@
+ static void
+ usage(void)
+ {
+-	(void)fprintf(stderr, "%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
++	(void)xo_error("%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n%s\n",
+ "usage: netstat [-AaLnSTWx] [-f protocol_family | -p protocol]\n"
+ "               [-M core] [-N system]",
+ "       netstat -i | -I interface [-abdhnW] [-f address_family]\n"
