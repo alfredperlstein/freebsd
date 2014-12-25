@@ -38,6 +38,8 @@
 #   xargs -n1 | sort | uniq -d;
 # done
 
+# 20141224: libxo moved to /lib
+OLD_LIBS+=usr/lib/libxo.so.0
 # 20141223: remove in6_gif.h, in_gif.h and if_stf.h
 OLD_FILES+=usr/include/net/if_stf.h
 OLD_FILES+=usr/include/netinet/in_gif.h
