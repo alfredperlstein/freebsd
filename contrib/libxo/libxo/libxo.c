@@ -78,6 +78,7 @@ struct xo_handle_s {
     unsigned short xo_style;	/* XO_STYLE_* value */
     unsigned short xo_indent;	/* Indent level (if pretty) */
     unsigned short xo_indent_by; /* Indent amount (tab stop) */
+    xo_flush_func_t xo_flush;	/* Write callback */
     xo_write_func_t xo_write;	/* Write callback */
     xo_close_func_t xo_close;	/* Close callback */
     xo_formatter_t xo_formatter; /* Custom formating function */
@@ -220,6 +221,17 @@ static void
 xo_anchor_clear (xo_handle_t *xop);
 
 /*
+ * Callback to flush a FILE pointer
+ */
+static int
+xo_flush_file (void *opaque)
+{
+    FILE *fp = (FILE *) opaque;
+
+    return (fflush(fp));
+}
+
+/*
  * Callback to write data to a FILE pointer
  */
 static int
@@ -300,6 +312,7 @@ xo_init_handle (xo_handle_t *xop)
 {
     xop->xo_opaque = stdout;
     xop->xo_write = xo_write_to_file;
+    xop->xo_flush = xo_flush_file;
 
     /*
      * We need to initialize the locale, which isn't really pretty.
@@ -1211,7 +1224,7 @@ xo_message_hcv (xo_handle_t *xop, int code, const char *fmt, va_list vap)
 	break;
     }
 
-    xo_flush_h(xop);
+    (void)xo_flush_h(xop);
 }
 
 void
@@ -1297,6 +1310,7 @@ xo_create_to_file (FILE *fp, xo_style_t style, xo_xof_flags_t flags)
 
     if (xop) {
 	xop->xo_opaque = fp;
+	xop->xo_flush = xo_flush_file;
 	xop->xo_write = xo_write_to_file;
 	xop->xo_close = xo_close_file;
     }
@@ -3163,7 +3177,8 @@ xo_do_emit (xo_handle_t *xop, const char *fmt)
     for (cp = fmt; *cp; ) {
 	if (*cp == '\n') {
 	    xo_line_close(xop);
-	    xo_flush_h(xop);
+	    if (xo_flush_h(xop))
+		    return -1;
 	    cp += 1;
 	    continue;
 
@@ -4029,13 +4044,14 @@ xo_close_instance_d (void)
 
 void
 xo_set_writer (xo_handle_t *xop, void *opaque, xo_write_func_t write_func,
-	       xo_close_func_t close_func)
+	       xo_close_func_t close_func, xo_flush_func_t flush_func)
 {
     xop = xo_default(xop);
 
     xop->xo_opaque = opaque;
     xop->xo_write = write_func;
     xop->xo_close = close_func;
+    xop->xo_flush = flush_func;
 }
 
 void
@@ -4045,7 +4061,7 @@ xo_set_allocator (xo_realloc_func_t realloc_func, xo_free_func_t free_func)
     xo_free = free_func;
 }
 
-void
+int
 xo_flush_h (xo_handle_t *xop)
 {
     static char div_close[] = "</div>";
@@ -4065,15 +4081,20 @@ xo_flush_h (xo_handle_t *xop)
     }
 
     xo_write(xop);
+    if (xop->xo_flush == NULL)
+	    return 0;
+
+    return (xop->xo_flush(xop->xo_opaque));
+
 }
 
-void
+int
 xo_flush (void)
 {
-    xo_flush_h(NULL);
+    return xo_flush_h(NULL);
 }
 
-void
+int
 xo_finish_h (xo_handle_t *xop)
 {
     const char *cp = "";
@@ -4091,13 +4112,13 @@ xo_finish_h (xo_handle_t *xop)
 	break;
     }
 
-    xo_flush_h(xop);
+    return xo_flush_h(xop);
 }
 
-void
+int
 xo_finish (void)
 {
-    xo_finish_h(NULL);
+    return xo_finish_h(NULL);
 }
 
 /*
