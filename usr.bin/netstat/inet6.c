@@ -446,7 +446,7 @@ ip6_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 			xo_close_instance("input-histogram");
 		}
 	if (!first)
-		xo_open_list("input-histogram");
+		xo_close_list("input-histogram");
 
 	xo_open_container("mbuf-statistics");
 	xo_emit("\t{T:Mbuf statistics}:\n");
