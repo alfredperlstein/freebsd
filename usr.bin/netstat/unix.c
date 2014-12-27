@@ -276,16 +276,16 @@ unixdomainpr(struct xunpcb *xunp, struct xsocket *so)
 	    "{T:/%16.16s} {T:/%16.16s} {T:/%16.16s} {T:Addr}\n"
 	};
 	static const char *format[2] = {
-	    "{:address/%8lx} {t:type/%-6.6s} "
+	    "{q:address/%8lx} {t:type/%-6.6s} "
 	    "{:receive-bytes-waiting/%6u} "
 	    "{:send-bytes-waiting/%6u} "
-	    "{:vnode/%8lx} {:connection/%8lx} "
-	    "{:first-reference/%8lx} {:next-reference/%8lx}",
-	    "{:address/%16lx} {t:type/%-6.6s} "
+	    "{q:vnode/%8lx} {q:connection/%8lx} "
+	    "{q:first-reference/%8lx} {q:next-reference/%8lx}",
+	    "{q:address/%16lx} {t:type/%-6.6s} "
 	    "{:receive-bytes-waiting/%6u} "
 	    "{:send-bytes-waiting/%6u} "
-	    "{:vnode/%16lx} {:connection/%16lx} "
-	    "{:first-reference/%16lx} {:next-reference/%16lx}"
+	    "{q:vnode/%16lx} {q:connection/%16lx} "
+	    "{q:first-reference/%16lx} {q:next-reference/%16lx}"
 	};
 	int fmt = (sizeof(void *) == 8) ? 1 : 0;
 
