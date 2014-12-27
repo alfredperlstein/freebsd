@@ -635,8 +635,10 @@ banner:
 	line = 0;
 
 loop:
-	if ((noutputs != 0) && (--noutputs == 0))
-		exit(0);
+	if ((noutputs != 0) && (--noutputs == 0)) {
+		xo_close_list("interface-statistics");
+		return;
+	}
 	oldmask = sigblock(sigmask(SIGALRM));
 	while (!signalled)
 		sigpause(0);
