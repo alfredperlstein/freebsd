@@ -1297,7 +1297,7 @@ icmp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		    0)
 			return;
 		xo_emit(
-	"\tICMP address mask responses are {:icmp-address-responses/%sabled}\n",
+	"\tICMP address mask responses are {q:icmp-address-responses/%sabled}\n",
 		    i ? "en" : "dis");
 	}
 
