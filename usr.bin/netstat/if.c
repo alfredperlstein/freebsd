@@ -426,7 +426,9 @@ intpr(int interval, void (*pfunc)(char *), int af)
 			    if (z > 0)
 				    xo_emit("{:address/%*s}",
 					    32 - z, buf);
-			    xo_emit("{]:-32}");
+			    else
+				    xo_emit("{P:                  }");
+			    //xo_emit("{]:-32}");
 			}
 			link = 1;
 			break;
