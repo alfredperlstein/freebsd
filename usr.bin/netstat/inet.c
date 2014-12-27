@@ -599,6 +599,7 @@ protopr(u_long off, const char *name, int af1, int proto)
 			    inp->inp_flowtype);
 		}
 		xo_emit("\n");
+		xo_close_instance("socket");
 	}
 	if (xig != oxig && xig->xig_gen != oxig->xig_gen) {
 		if (oxig->xig_count > xig->xig_count) {
