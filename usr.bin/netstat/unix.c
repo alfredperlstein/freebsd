@@ -57,6 +57,7 @@ __FBSDID("$FreeBSD$");
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <strings.h>
 #include <kvm.h>
 #include <libxo/xo.h>
@@ -191,7 +192,7 @@ fail:
 
 void
 unixpr(u_long count_off, u_long gencnt_off, u_long dhead_off, u_long shead_off,
-    u_long sphead_off)
+    u_long sphead_off, bool *first)
 {
 	char 	*buf;
 	int	ret, type;
@@ -227,7 +228,6 @@ unixpr(u_long count_off, u_long gencnt_off, u_long dhead_off, u_long shead_off,
 		if (ret < 0)
 			return;
 
-		xo_open_list("socket");
 		oxug = xug = (struct xunpgen *)buf;
 		for (xug = (struct xunpgen *)((char *)xug + xug->xug_len);
 		     xug->xug_len > sizeof(struct xunpgen);
@@ -238,11 +238,14 @@ unixpr(u_long count_off, u_long gencnt_off, u_long dhead_off, u_long shead_off,
 			/* Ignore PCBs which were freed during copyout. */
 			if (xunp->xu_unp.unp_gencnt > oxug->xug_gen)
 				continue;
+			if (*first) {
+				xo_open_list("socket");
+				*first = false;
+			}
 			xo_open_instance("socket");
 			unixdomainpr(xunp, so);
 			xo_close_instance("socket");
 		}
-		xo_close_list("socket");
 		if (xug != oxug && xug->xug_gen != oxug->xug_gen) {
 			if (oxug->xug_count > xug->xug_count) {
 				xo_emit(
