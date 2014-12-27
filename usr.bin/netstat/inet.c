@@ -461,11 +461,11 @@ protopr(u_long off, const char *name, int af1, int proto)
 		xo_open_instance("socket");
 		if (Aflag) {
 			if (istcp)
-				xo_emit("{:address/%*lx} ",
+				xo_emit("{q:address/%*lx} ",
 					2 * (int)sizeof(void *),
 					(u_long)inp->inp_ppcb);
 			else
-				xo_emit("{:adddress/%*lx} ",
+				xo_emit("{q:adddress/%*lx} ",
 					2 * (int)sizeof(void *),
 					(u_long)so->so_pcb);
 		}
