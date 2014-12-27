@@ -115,6 +115,12 @@ static const char* pfsyncacts_name[] = {
 	/* PFSYNC_ACT_EOF */		"end-of-frame-mark",
 };
 
+#if 0
+#define dbg()	do { xo_emit(" **{:d/%d} **\n", __LINE__);fflush(NULL); } while(0)
+#undef dbg
+#define dbg()	do { } while(0)
+#endif
+
 static void
 pfsync_acts_stats(const char *list, const char *desc, uint64_t *a)
 {
