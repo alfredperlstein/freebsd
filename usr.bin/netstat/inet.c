@@ -472,11 +472,11 @@ protopr(u_long off, const char *name, int af1, int proto)
 #ifdef INET6
 		if ((inp->inp_vflag & INP_IPV6) != 0)
 			vchar = ((inp->inp_vflag & INP_IPV4) != 0) ?
-			    "46" : "6 ";
+			    "46" : "6";
 		else
 #endif
 		vchar = ((inp->inp_vflag & INP_IPV4) != 0) ?
-		    "4 " : "  ";
+		    "4" : "";
 		if (istcp && (tp->t_flags & TF_TOE) != 0)
 			xo_emit("{:protocol/%-3.3s%-2.2s/%s%s} ", "toe", vchar);
 		else
