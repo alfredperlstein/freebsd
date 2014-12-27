@@ -166,6 +166,7 @@ bpf_stats(char *ifname)
 		free(pname);
 		xo_close_instance("bpf-entry");
 	}
+	xo_close_list("bpf-entry");
 	xo_close_container("bpf-statistics");
 	free(bd);
 }
