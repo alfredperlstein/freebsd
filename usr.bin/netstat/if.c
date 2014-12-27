@@ -451,8 +451,10 @@ intpr(int interval, void (*pfunc)(char *), int af)
 			show_stat("LSlu", 5, "dropped-packets", IFA_STAT(oqdrops), link);
 		xo_emit("\n");
 
-		if (!aflag)
+		if (!aflag) {
+			xo_close_instance("interface");
 			continue;
+		}
 
 		/*
 		 * Print family's multicast addresses.
