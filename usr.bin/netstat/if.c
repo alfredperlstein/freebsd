@@ -298,8 +298,8 @@ intpr(int interval, void (*pfunc)(char *), int af)
 			xo_emit(" {T:/%10.10s}","Obytes");
 		xo_emit(" {T:/%5s}", "Coll");
 		if (dflag)
-+			xo_emit(" {T:/%s}", "Drop");
-+		xo_emit("\n");
+			xo_emit(" {T:/%s}", "Drop");
+		xo_emit("\n");
 	}
 
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
