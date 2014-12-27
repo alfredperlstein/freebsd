@@ -460,7 +460,7 @@ netisr_print_proto(struct sysctl_netisr_proto *snpp)
 {
 	char tmp[20];
 
-	xo_emit("{k:name/%-6s}", snpp->snp_name);
+	xo_emit("{[:-6}{k:name/%s}{]:}", snpp->snp_name);
 	xo_emit(" {:protocol/%5u}", snpp->snp_proto);
 	xo_emit(" {:queue-limit/%6u}", snpp->snp_qlimit);
 	xo_emit(" {:policy-type/%6s}",
