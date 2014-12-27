@@ -638,6 +638,7 @@ printproto(struct protox *tp, const char *name, bool *first)
 {
 	void (*pr)(u_long, const char *, int, int);
 	u_long off;
+	bool doingdblocks = false;
 
 	if (sflag) {
 		if (iflag) {
@@ -668,6 +669,7 @@ printproto(struct protox *tp, const char *name, bool *first)
 				off = nl[tp->pr_sindex].n_value;
 		}
 	} else {
+		doingdblocks = true;
 		pr = tp->pr_cblocks;
 		if (!pr) {
 			if (pflag)
@@ -687,7 +689,7 @@ printproto(struct protox *tp, const char *name, bool *first)
 	}
 	if (pr != NULL && (off || (live && tp->pr_usesysctl) ||
 			   af != AF_UNSPEC)) {
-		if (*first) {
+		if (doingdblocks && *first) {
 			xo_open_list("socket");
 			*first = false;
 		}
