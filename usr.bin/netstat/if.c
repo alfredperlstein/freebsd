@@ -232,23 +232,41 @@ show_stat(const char *fmt, int width, const char *name,
 		return;
 	}
 
+	/* XXX: workaround {P:} modifier can't be empty and doesn't seem to take args...
+	 * so we need to conditionally include it in the format.
+	 */
+#define maybe_pad(pad)	do {						    \
+	if (strlen(pad)) {						    \
+		snprintf(newfmt, sizeof(newfmt), "{P:%s}", pad);	    \
+		xo_emit(newfmt);					    \
+	}								    \
+} while (0)
+
 	if (hflag) {
 		char buf[5];
 
 		/* Format in human readable form. */
 		humanize_number(buf, sizeof(buf), (int64_t)value, "",
 		    HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-		sprintf(newfmt, "%s%%%ds%s", lsep, width, rsep);
+		snprintf(newfmt, sizeof(newfmt), "%s%%%ds%s", lsep, width, rsep);
 		xo_emit(newfmt, buf);
+		//fprintf(stderr, "%d -> %s -> %s\n", __LINE__, newfmt, buf);
 		xo_attr("value", "%lu", value);
-		snprintf(newfmt, sizeof(newfmt), "{P:/%s}{:%s/%%%ds}{P:%s}",
-			 lsep, name, width, rsep);
+		maybe_pad(lsep);
+		snprintf(newfmt, sizeof(newfmt), "{:%s/%%%ds}", name, width);
 		xo_emit(newfmt, buf);
+		maybe_pad(rsep);
+		//fprintf(stderr, "%d -> %s -> %s\n", __LINE__, newfmt, buf);
 	} else {
 		/* Construct the format string. */
-		snprintf(newfmt, sizeof(newfmt), "{P:/%s}{:%s/%%%d%s}{P:%s}",
-			 lsep, name, width, fmt, rsep);
+		/*snprintf(newfmt, sizeof(newfmt), "{P:/%zds}{:%s/%%%d%s}{P:/%zds}",
+			 strlen(lsep), name, width, fmt, strlen(rsep));*/
+		maybe_pad(lsep);
+		snprintf(newfmt, sizeof(newfmt), "{:%s/%%%d%s}",
+			 name, width, fmt);
+		//fprintf(stderr, "%d -> %s -> %lu\n", __LINE__, newfmt, value);
 		xo_emit(newfmt, value);
+		maybe_pad(rsep);
 	}
 }
 
