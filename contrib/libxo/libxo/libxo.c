@@ -78,9 +78,10 @@ struct xo_handle_s {
     unsigned short xo_style;	/* XO_STYLE_* value */
     unsigned short xo_indent;	/* Indent level (if pretty) */
     unsigned short xo_indent_by; /* Indent amount (tab stop) */
-    xo_flush_func_t xo_flush;	/* Write callback */
+    xo_flush_func_t xo_flush;	/* Flush callback */
     xo_write_func_t xo_write;	/* Write callback */
     xo_close_func_t xo_close;	/* Close callback */
+    xo_getbufmode_func_t  xo_getbufmode;	/* Get file buffer mode */
     xo_formatter_t xo_formatter; /* Custom formating function */
     xo_checkpointer_t xo_checkpointer; /* Custom formating support function */
     void *xo_opaque;		/* Opaque data for write function */
@@ -220,6 +221,16 @@ xo_buf_append_div (xo_handle_t *xop, const char *class, xo_xff_flags_t flags,
 static void
 xo_anchor_clear (xo_handle_t *xop);
 
+/*
+ * What buffer mode is the underlying file?
+ */
+static int
+xo_getbufmode_file (void *opaque, int *mode)
+{
+    FILE *fp = (FILE *) opaque;
+
+    return (getbufmode(fp, mode));
+}
 /*
  * Callback to flush a FILE pointer
  */
@@ -1315,6 +1326,7 @@ xo_create_to_file (FILE *fp, xo_style_t style, xo_xof_flags_t flags)
 	xop->xo_flush = xo_flush_file;
 	xop->xo_write = xo_write_to_file;
 	xop->xo_close = xo_close_file;
+	xop->xo_getbufmode = xo_getbufmode_file;
     }
 
     return xop;
@@ -3173,14 +3185,17 @@ xo_do_emit (xo_handle_t *xop, const char *fmt)
     const char *cp, *sp, *ep, *basep;
     char *newp = NULL;
     int flush = (xop->xo_flags & XOF_FLUSH) ? 1 : 0;
+    int mode;
 
     xop->xo_columns = 0;	/* Always reset it */
 
     for (cp = fmt; *cp; ) {
 	if (*cp == '\n') {
 	    xo_line_close(xop);
-	    if (xo_flush_h(xop))
-		    return -1;
+	    if (xo_getbufmode_h(xop, &mode) == 0 && mode != _IOFBF) {
+		if (xo_flush_h(xop))
+			return -1;
+	    }
 	    cp += 1;
 	    continue;
 
@@ -4088,6 +4103,18 @@ xo_flush_h (xo_handle_t *xop)
 
     return (xop->xo_flush(xop->xo_opaque));
 
+}
+
+int
+xo_getbufmode_h(xo_handle_t *xop, int *mode)
+{
+
+    xop = xo_default(xop);
+    if (xop->xo_getbufmode != NULL)
+	    return (xop->xo_getbufmode(xop->xo_opaque, mode));
+
+    *mode = _IOFBF;
+    return (0);
 }
 
 int
