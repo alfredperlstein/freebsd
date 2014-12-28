@@ -4,7 +4,7 @@
 # stdio sources
 .PATH: ${LIBC_SRCTOP}/stdio
 
-SRCS+=	_flock_stub.c asprintf.c clrerr.c dprintf.c \
+SRCS+=	__flbf.c _flock_stub.c asprintf.c clrerr.c dprintf.c \
 	fclose.c fcloseall.c fdopen.c \
 	feof.c ferror.c fflush.c fgetc.c fgetln.c fgetpos.c fgets.c fgetwc.c \
 	fgetwln.c fgetws.c \
@@ -12,7 +12,7 @@ SRCS+=	_flock_stub.c asprintf.c clrerr.c dprintf.c \
 	fputc.c fputs.c \
 	fputwc.c fputws.c fread.c freopen.c fscanf.c fseek.c fsetpos.c \
 	ftell.c funopen.c fvwrite.c fwalk.c fwide.c fwprintf.c fwscanf.c \
-	fwrite.c getbufmode.c getc.c getchar.c getdelim.c getline.c \
+	fwrite.c getc.c getchar.c getdelim.c getline.c \
 	gets.c getw.c getwc.c getwchar.c makebuf.c mktemp.c \
 	open_memstream.c open_wmemstream.c \
 	perror.c printf.c printf-pos.c putc.c putchar.c \
@@ -79,7 +79,7 @@ MLINKS+=scanf.3 fscanf.3 scanf.3 sscanf.3 scanf.3 vfscanf.3 scanf.3 vscanf.3 \
 MLINKS+=scanf_l.3 fscanf_l.3 scanf_l.3 sscanf_l.3 scanf_l.3 vfscanf_l.3 \
 	scanf_l.3 vscanf_l.3 scanf_l.3 vsscanf_l.3
 MLINKS+=setbuf.3 setbuffer.3 setbuf.3 setlinebuf.3 setbuf.3 setvbuf.3
-MLINKS+=setbuf.3 getbufmode.3
+MLINKS+=setbuf.3 __flbf.3
 MLINKS+=tmpnam.3 tempnam.3 tmpnam.3 tmpfile.3
 MLINKS+=wprintf.3 fwprintf.3 wprintf.3 swprintf.3 \
 	wprintf.3 vwprintf.3 wprintf.3 vfwprintf.3 wprintf.3 vswprintf.3
