@@ -35,6 +35,7 @@ static const char rcsid[] =
 
 #include <err.h>
 #include <stdio.h>
+#include <libxo/xo.h>
 
 #include <dev/pci/pcireg.h>
 
@@ -111,6 +112,17 @@ static struct bit_table aer_cor[] = {
 	{ 0, NULL },
 };
 
+static int errors;
+
+static void
+print_header(const char *header)
+{
+	if (errors++ == 0)
+		xo_open_list("error-category");
+	xo_open_instance("error-category");
+	xo_emit("{:category/%14s} = ", header);
+}
+
 static void
 print_bits(const char *header, struct bit_table *table, uint32_t mask)
 {
@@ -120,20 +132,28 @@ print_bits(const char *header, struct bit_table *table, uint32_t mask)
 	for (; table->desc != NULL; table++)
 		if (mask & table->mask) {
 			if (first) {
-				printf("%14s = ", header);
+				print_header(header);
+				xo_open_list("detected-error");
 				first = 0;
 			} else
-				printf("                 ");
-			printf("%s\n", table->desc);
+				xo_emit("                 ");
+			xo_open_instance("detected-error");
+			xo_emit("{:description/%s}\n", table->desc);
+			xo_close_instance("detected-error");
 			mask &= ~table->mask;
 		}
+	if (!first)
+		xo_close_list("detected-error");
 	if (mask != 0) {
-		if (first)
-			printf("%14s = ", header);
-		else
-			printf("                 ");
-		printf("Unknown: 0x%08x\n", mask);
+		if (first) {
+			print_header(header);
+			first = 0;
+		} else
+			xo_emit("                 ");
+		xo_emit("Unknown: {:unknown-errors-bitmask/0x%08x}\n", mask);
 	}
+	if (!first)
+		xo_close_instance("error-category");
 }
 
 void
@@ -143,6 +163,8 @@ list_errors(int fd, struct pci_conf *p)
 	uint16_t sta, aer;
 	uint8_t pcie;
 
+	errors = 0;
+
 	/* First check for standard PCI errors. */
 	sta = read_config(fd, &p->pc_sel, PCIR_STATUS, 2);
 	print_bits("PCI errors", pci_status, sta & PCI_ERRORS);
@@ -150,7 +172,7 @@ list_errors(int fd, struct pci_conf *p)
 	/* See if this is a PCI-express device. */
 	pcie = pci_find_cap(fd, p, PCIY_EXPRESS);
 	if (pcie == 0)
-		return;
+		goto done;
 
 	/* Check for PCI-e errors. */
 	sta = read_config(fd, &p->pc_sel, pcie + PCIER_DEVICE_STA, 2);
@@ -159,7 +181,7 @@ list_errors(int fd, struct pci_conf *p)
 	/* See if this device supports AER. */
 	aer = pcie_find_cap(fd, p, PCIZ_AER);
 	if (aer == 0)
-		return;
+		goto done;
 
 	/* Check for uncorrected errors. */
 	mask = read_config(fd, &p->pc_sel, aer + PCIR_AER_UC_STATUS, 4);
@@ -170,4 +192,7 @@ list_errors(int fd, struct pci_conf *p)
 	/* Check for corrected errors. */
 	mask = read_config(fd, &p->pc_sel, aer + PCIR_AER_COR_STATUS, 4);
 	print_bits("Corrected", aer_cor, mask);
+ done:
+	if (errors != 0)
+		xo_close_list("error-category");
 }
