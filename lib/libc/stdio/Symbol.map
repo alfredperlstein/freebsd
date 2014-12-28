@@ -151,6 +151,7 @@ FBSD_1.3 {
 	wscanf_l;
 	fgetws_l;
 	fputws_l;
+	__flbf;
 	getwc_l;
 	getwchar_l;
 	putwc_l;

@@ -53,6 +53,8 @@
 .Fn setlinebuf "FILE *stream"
 .Ft int
 .Fn setvbuf "FILE * restrict stream" "char * restrict buf" "int mode" "size_t size"
+.Ft int
+.Fn __flbf "FILE * restrict stream"
 .Sh DESCRIPTION
 The three types of buffering available are unbuffered, block buffered,
 and line buffered.
@@ -166,6 +168,13 @@ function
 is exactly equivalent to the call:
 .Pp
 .Dl "setvbuf(stream, (char *)NULL, _IOLBF, 0);"
+The
+.Pp
+.Fn __flbf
+function returns if the steam is line buffered or not.
+.Fn __flbf
+is a non-standard function and should not be used by code
+that aims to be portable.
 .Sh RETURN VALUES
 The
 .Fn setvbuf
@@ -179,6 +188,9 @@ The
 function returns what the equivalent
 .Fn setvbuf
 would have returned.
+.Pp
+.Fn __flbf
+returns 1 if the file is line buffered, otherwise it returns 0.
 .Sh SEE ALSO
 .Xr stdbuf 1 ,
 .Xr fclose 3 ,
@@ -195,6 +207,10 @@ and
 functions
 conform to
 .St -isoC .
+.Pp
+The function
+.Fn __flbf
+is a non-standard function that appears in Solaris and glibc.
 .Sh BUGS
 .Fn setbuf
 usually uses a suboptimal buffer size and should be avoided.
