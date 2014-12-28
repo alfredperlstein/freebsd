@@ -399,6 +399,7 @@ void	 fcloseall(void);
 char	*fgetln(FILE *, size_t *);
 const char *fmtcheck(const char *, const char *) __format_arg(2);
 int	 fpurge(FILE *);
+int      getbufmode(FILE *, int *);
 void	 setbuffer(FILE *, char *, int);
 int	 setlinebuf(FILE *);
 int	 vasprintf(char **, const char *, __va_list)
