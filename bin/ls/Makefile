@@ -5,7 +5,8 @@
 
 PROG=	ls
 SRCS=	cmp.c ls.c print.c util.c
-LIBADD=	util
+CFLAGS+= ${CARGS}
+LIBADD=	xo util
 
 .if !defined(RELEASE_CRUNCH) && \
 	${MK_LS_COLORS} != no
