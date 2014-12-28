@@ -4,7 +4,7 @@
 # stdio sources
 .PATH: ${LIBC_SRCTOP}/stdio
 
-SRCS+=	_flock_stub.c asprintf.c clrerr.c dprintf.c \
+SRCS+=	__flbf.c _flock_stub.c asprintf.c clrerr.c dprintf.c \
 	fclose.c fcloseall.c fdopen.c \
 	feof.c ferror.c fflush.c fgetc.c fgetln.c fgetpos.c fgets.c fgetwc.c \
 	fgetwln.c fgetws.c \
@@ -79,6 +79,7 @@ MLINKS+=scanf.3 fscanf.3 scanf.3 sscanf.3 scanf.3 vfscanf.3 scanf.3 vscanf.3 \
 MLINKS+=scanf_l.3 fscanf_l.3 scanf_l.3 sscanf_l.3 scanf_l.3 vfscanf_l.3 \
 	scanf_l.3 vscanf_l.3 scanf_l.3 vsscanf_l.3
 MLINKS+=setbuf.3 setbuffer.3 setbuf.3 setlinebuf.3 setbuf.3 setvbuf.3
+MLINKS+=setbuf.3 __flbf.3
 MLINKS+=tmpnam.3 tempnam.3 tmpnam.3 tmpfile.3
 MLINKS+=wprintf.3 fwprintf.3 wprintf.3 swprintf.3 \
 	wprintf.3 vwprintf.3 wprintf.3 vfwprintf.3 wprintf.3 vswprintf.3

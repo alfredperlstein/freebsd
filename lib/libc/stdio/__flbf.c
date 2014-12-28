@@ -1,6 +1,8 @@
 /*-
- * Copyright (c) 2010 Joerg Wunsch
+ * Copyright (c) 2014 Norse Corporation
  * All rights reserved.
+ *
+ * Author: Alfred Perlstein <alfred@freebsd.org>
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -22,56 +24,27 @@
  * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY
  * OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF
  * SUCH DAMAGE.
- *
- * $FreeBSD$
  */
+#if defined(LIBC_SCCS) && !defined(lint)
+static char sccsid[] = "@(#)setvbuf.c	8.2 (Berkeley) 11/16/93";
+#endif /* LIBC_SCCS and not lint */
+#include <sys/cdefs.h>
+__FBSDID("$FreeBSD$");
 
-enum tnt4882reg {
-	dir = 0x00,
-	cdor = 0x00,
-	isr1 = 0x02,
-	imr1 = 0x02,
-	isr2 = 0x04,
-	imr2 = 0x04,
-	accwr = 0x05,
-	spsr = 0x06,
-	spmr = 0x06,
-	intr = 0x07,
-	adsr = 0x08,
-	admr = 0x08,
-	cnt2 = 0x09,
-	cptr = 0x0a,
-	auxmr = 0x0a,
-	tauxcr = 0x0a,	/* 9914 mode register */
-	cnt3 = 0x0b,
-	adr0 = 0x0c,
-	adr = 0x0c,
-	hssel = 0x0d,
-	adr1 = 0x0e,
-	eosr = 0x0e,
-	sts1 = 0x10,
-	cfg = 0x10,
-	dsr = 0x11,
-	sh_cnt = 0x11,
-	imr3 = 0x12,
-	hier = 0x13,
-	cnt0 = 0x14,
-	misc = 0x15,
-	cnt1 = 0x16,
-	csr = 0x17,
-	keyreg = 0x17,
-	fifob = 0x18,
-	fifoa = 0x19,
-	isr3 = 0x1a,
-	ccr = 0x1a,
-	sasr = 0x1b,
-	dcr = 0x1b,
-	sts2 = 0x1c,
-	cmdr = 0x1c,
-	isr0 = 0x1d,
-	imr0 = 0x1d,
-	timer = 0x1e,
-	bsr = 0x1f,
-	bcr = 0x1f
-};
+#include "namespace.h"
+#include <stdio.h>
+#include <stdlib.h>
+#include <errno.h>
+#include "un-namespace.h"
+#include "local.h"
+#include "libc_private.h"
 
+/*
+ * Return if file is line buffered or not.
+ */
+int
+__flbf(FILE * __restrict fp)
+{
+
+	return ((fp->_flags & __SLBF) != 0);
+}
