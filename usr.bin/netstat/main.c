@@ -65,6 +65,7 @@ __FBSDID("$FreeBSD$");
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include "netstat.h"
@@ -272,7 +273,7 @@ struct protox *protoprotox[] = {
 #endif
 					 NULL };
 
-static void printproto(struct protox *, const char *);
+static void printproto(struct protox *, const char *, bool *);
 static void usage(void);
 static struct protox *name2protox(const char *);
 static struct protox *knownname(const char *);
@@ -318,6 +319,7 @@ main(int argc, char *argv[])
 	int ch;
 	int fib = -1;
 	char *endptr;
+	bool first = true;
 
 	af = AF_UNSPEC;
 
@@ -587,7 +589,9 @@ main(int argc, char *argv[])
 
 	if (tp) {
 		xo_open_container("statistics");
-		printproto(tp, tp->pr_name);
+		printproto(tp, tp->pr_name, &first);
+		if (!first)
+			xo_close_list("socket");
 		xo_close_container("statistics");
 		xo_finish();
 		exit(0);
@@ -596,27 +600,29 @@ main(int argc, char *argv[])
 	xo_open_container("statistics");
 	if (af == AF_INET || af == AF_UNSPEC)
 		for (tp = protox; tp->pr_name; tp++)
-			printproto(tp, tp->pr_name);
+			printproto(tp, tp->pr_name, &first);
 #ifdef INET6
 	if (af == AF_INET6 || af == AF_UNSPEC)
 		for (tp = ip6protox; tp->pr_name; tp++)
-			printproto(tp, tp->pr_name);
+			printproto(tp, tp->pr_name, &first);
 #endif /*INET6*/
 #ifdef IPSEC
 	if (af == PF_KEY || af == AF_UNSPEC)
 		for (tp = pfkeyprotox; tp->pr_name; tp++)
-			printproto(tp, tp->pr_name);
+			printproto(tp, tp->pr_name, &first);
 #endif /*IPSEC*/
 #ifdef NETGRAPH
 	if (af == AF_NETGRAPH || af == AF_UNSPEC)
 		for (tp = netgraphprotox; tp->pr_name; tp++)
-			printproto(tp, tp->pr_name);
+			printproto(tp, tp->pr_name, &first);
 #endif /* NETGRAPH */
 	if ((af == AF_UNIX || af == AF_UNSPEC) && !sflag)
 		unixpr(nl[N_UNP_COUNT].n_value, nl[N_UNP_GENCNT].n_value,
 		    nl[N_UNP_DHEAD].n_value, nl[N_UNP_SHEAD].n_value,
-		    nl[N_UNP_SPHEAD].n_value);
+		    nl[N_UNP_SPHEAD].n_value, &first);
 
+	if (!first)
+		xo_close_list("socket");
 	xo_close_container("statistics");
 	xo_finish();
 	exit(0);
@@ -628,11 +634,11 @@ main(int argc, char *argv[])
  * is not in the namelist, ignore this one.
  */
 static void
-printproto(struct protox *tp, const char *name)
+printproto(struct protox *tp, const char *name, bool *first)
 {
 	void (*pr)(u_long, const char *, int, int);
 	u_long off;
-	int first = 1;
+	bool doingdblocks = false;
 
 	if (sflag) {
 		if (iflag) {
@@ -663,6 +669,7 @@ printproto(struct protox *tp, const char *name)
 				off = nl[tp->pr_sindex].n_value;
 		}
 	} else {
+		doingdblocks = true;
 		pr = tp->pr_cblocks;
 		if (!pr) {
 			if (pflag)
@@ -682,15 +689,13 @@ printproto(struct protox *tp, const char *name)
 	}
 	if (pr != NULL && (off || (live && tp->pr_usesysctl) ||
 			   af != AF_UNSPEC)) {
-		if (first) {
+		if (doingdblocks && *first) {
 			xo_open_list("socket");
-			first = 0;
+			*first = false;
 		}
 
 		(*pr)(off, name, af, tp->pr_protocol);
 	}
-	if (!first)
-		xo_close_list("socket");
 }
 
 static int

@@ -69,6 +69,7 @@ __FBSDID("$FreeBSD$");
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <libxo/xo.h>
 #include "netstat.h"
 

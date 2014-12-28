@@ -65,6 +65,7 @@ __FBSDID("$FreeBSD$");
 #include <err.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdbool.h>
 #include <errno.h>
 #include <string.h>
 #include <unistd.h>
@@ -445,7 +446,7 @@ ip6_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 			xo_close_instance("input-histogram");
 		}
 	if (!first)
-		xo_open_list("input-histogram");
+		xo_close_list("input-histogram");
 
 	xo_open_container("mbuf-statistics");
 	xo_emit("\t{T:Mbuf statistics}:\n");
@@ -504,7 +505,7 @@ ip6_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 			  "{N:/global%s}\n");\
 			break;\
 		default:\
-			xo_emit("\t\t{ke:name/%x}{:count/%ju} " \
+			xo_emit("\t\t{qke:name/%x}{:count/%ju} " \
 				"addresses scope=%x\n",\
 				i, (uintmax_t)ip6stat.s, i);	   \
 		}\

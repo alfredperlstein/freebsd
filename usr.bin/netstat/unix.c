@@ -57,6 +57,7 @@ __FBSDID("$FreeBSD$");
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <strings.h>
 #include <kvm.h>
 #include <libxo/xo.h>
@@ -191,7 +192,7 @@ fail:
 
 void
 unixpr(u_long count_off, u_long gencnt_off, u_long dhead_off, u_long shead_off,
-    u_long sphead_off)
+    u_long sphead_off, bool *first)
 {
 	char 	*buf;
 	int	ret, type;
@@ -227,7 +228,6 @@ unixpr(u_long count_off, u_long gencnt_off, u_long dhead_off, u_long shead_off,
 		if (ret < 0)
 			return;
 
-		xo_open_list("socket");
 		oxug = xug = (struct xunpgen *)buf;
 		for (xug = (struct xunpgen *)((char *)xug + xug->xug_len);
 		     xug->xug_len > sizeof(struct xunpgen);
@@ -238,11 +238,14 @@ unixpr(u_long count_off, u_long gencnt_off, u_long dhead_off, u_long shead_off,
 			/* Ignore PCBs which were freed during copyout. */
 			if (xunp->xu_unp.unp_gencnt > oxug->xug_gen)
 				continue;
+			if (*first) {
+				xo_open_list("socket");
+				*first = false;
+			}
 			xo_open_instance("socket");
 			unixdomainpr(xunp, so);
 			xo_close_instance("socket");
 		}
-		xo_close_list("socket");
 		if (xug != oxug && xug->xug_gen != oxug->xug_gen) {
 			if (oxug->xug_count > xug->xug_count) {
 				xo_emit(
@@ -276,16 +279,16 @@ unixdomainpr(struct xunpcb *xunp, struct xsocket *so)
 	    "{T:/%16.16s} {T:/%16.16s} {T:/%16.16s} {T:Addr}\n"
 	};
 	static const char *format[2] = {
-	    "{:address/%8lx} {t:type/%-6.6s} "
+	    "{q:address/%8lx} {t:type/%-6.6s} "
 	    "{:receive-bytes-waiting/%6u} "
 	    "{:send-bytes-waiting/%6u} "
-	    "{:vnode/%8lx} {:connection/%8lx} "
-	    "{:first-reference/%8lx} {:next-reference/%8lx}",
-	    "{:address/%16lx} {t:type/%-6.6s} "
+	    "{q:vnode/%8lx} {q:connection/%8lx} "
+	    "{q:first-reference/%8lx} {q:next-reference/%8lx}",
+	    "{q:address/%16lx} {t:type/%-6.6s} "
 	    "{:receive-bytes-waiting/%6u} "
 	    "{:send-bytes-waiting/%6u} "
-	    "{:vnode/%16lx} {:connection/%16lx} "
-	    "{:first-reference/%16lx} {:next-reference/%16lx}"
+	    "{q:vnode/%16lx} {q:connection/%16lx} "
+	    "{q:first-reference/%16lx} {q:next-reference/%16lx}"
 	};
 	int fmt = (sizeof(void *) == 8) ? 1 : 0;
 

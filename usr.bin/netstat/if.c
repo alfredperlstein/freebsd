@@ -115,6 +115,12 @@ static const char* pfsyncacts_name[] = {
 	/* PFSYNC_ACT_EOF */		"end-of-frame-mark",
 };
 
+#if 0
+#define dbg()	do { xo_emit(" **{:d/%d} **\n", __LINE__);fflush(NULL); } while(0)
+#undef dbg
+#define dbg()	do { } while(0)
+#endif
+
 static void
 pfsync_acts_stats(const char *list, const char *desc, uint64_t *a)
 {
@@ -226,23 +232,41 @@ show_stat(const char *fmt, int width, const char *name,
 		return;
 	}
 
+	/* XXX: workaround {P:} modifier can't be empty and doesn't seem to take args...
+	 * so we need to conditionally include it in the format.
+	 */
+#define maybe_pad(pad)	do {						    \
+	if (strlen(pad)) {						    \
+		snprintf(newfmt, sizeof(newfmt), "{P:%s}", pad);	    \
+		xo_emit(newfmt);					    \
+	}								    \
+} while (0)
+
 	if (hflag) {
 		char buf[5];
 
 		/* Format in human readable form. */
 		humanize_number(buf, sizeof(buf), (int64_t)value, "",
 		    HN_AUTOSCALE, HN_NOSPACE | HN_DECIMAL);
-		sprintf(newfmt, "%s%%%ds%s", lsep, width, rsep);
+		snprintf(newfmt, sizeof(newfmt), "%s%%%ds%s", lsep, width, rsep);
 		xo_emit(newfmt, buf);
+		//fprintf(stderr, "%d -> %s -> %s\n", __LINE__, newfmt, buf);
 		xo_attr("value", "%lu", value);
-		snprintf(newfmt, sizeof(newfmt), "{P:/%s}{:%s/%%%ds}{P:%s}",
-			 lsep, name, width, rsep);
+		maybe_pad(lsep);
+		snprintf(newfmt, sizeof(newfmt), "{:%s/%%%ds}", name, width);
 		xo_emit(newfmt, buf);
+		maybe_pad(rsep);
+		//fprintf(stderr, "%d -> %s -> %s\n", __LINE__, newfmt, buf);
 	} else {
 		/* Construct the format string. */
-		snprintf(newfmt, sizeof(newfmt), "{P:/%s}{:%s/%%%d%s}{P:%s}",
-			 lsep, name, width, fmt, rsep);
+		/*snprintf(newfmt, sizeof(newfmt), "{P:/%zds}{:%s/%%%d%s}{P:/%zds}",
+			 strlen(lsep), name, width, fmt, strlen(rsep));*/
+		maybe_pad(lsep);
+		snprintf(newfmt, sizeof(newfmt), "{:%s/%%%d%s}",
+			 name, width, fmt);
+		//fprintf(stderr, "%d -> %s -> %lu\n", __LINE__, newfmt, value);
 		xo_emit(newfmt, value);
+		maybe_pad(rsep);
 	}
 }
 
@@ -298,8 +322,8 @@ intpr(int interval, void (*pfunc)(char *), int af)
 			xo_emit(" {T:/%10.10s}","Obytes");
 		xo_emit(" {T:/%5s}", "Coll");
 		if (dflag)
-+			xo_emit(" {T:/%s}", "Drop");
-+		xo_emit("\n");
+			xo_emit(" {T:/%s}", "Drop");
+		xo_emit("\n");
 	}
 
 	for (ifa = ifap; ifa; ifa = ifa->ifa_next) {
@@ -402,7 +426,9 @@ intpr(int interval, void (*pfunc)(char *), int af)
 			    if (z > 0)
 				    xo_emit("{:address/%*s}",
 					    32 - z, buf);
-			    xo_emit("{]:-32}");
+			    else
+				    xo_emit("{P:                  }");
+			    //xo_emit("{]:-32}");
 			}
 			link = 1;
 			break;
@@ -425,8 +451,10 @@ intpr(int interval, void (*pfunc)(char *), int af)
 			show_stat("LSlu", 5, "dropped-packets", IFA_STAT(oqdrops), link);
 		xo_emit("\n");
 
-		if (!aflag)
+		if (!aflag) {
+			xo_close_instance("interface");
 			continue;
+		}
 
 		/*
 		 * Print family's multicast addresses.
@@ -607,8 +635,10 @@ banner:
 	line = 0;
 
 loop:
-	if ((noutputs != 0) && (--noutputs == 0))
-		exit(0);
+	if ((noutputs != 0) && (--noutputs == 0)) {
+		xo_close_list("interface-statistics");
+		return;
+	}
 	oldmask = sigblock(sigmask(SIGALRM));
 	while (!signalled)
 		sigpause(0);

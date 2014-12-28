@@ -46,6 +46,7 @@ __FBSDID("$FreeBSD$");
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <libxo/xo.h>
 #include "netstat.h"
@@ -459,7 +460,7 @@ netisr_print_proto(struct sysctl_netisr_proto *snpp)
 {
 	char tmp[20];
 
-	xo_emit("{k:name/%-6s}", snpp->snp_name);
+	xo_emit("{[:-6}{k:name/%s}{]:}", snpp->snp_name);
 	xo_emit(" {:protocol/%5u}", snpp->snp_proto);
 	xo_emit(" {:queue-limit/%6u}", snpp->snp_qlimit);
 	xo_emit(" {:policy-type/%6s}",
@@ -489,7 +490,7 @@ netisr_print_workstream(struct sysctl_netisr_workstream *snwsp)
 		xo_open_instance("work");
 		xo_emit("{t:workstream/%4u} ", snwsp->snws_wsid);
 		xo_emit("{t:cpu/%3u} ", snwsp->snws_cpu);
-		xo_emit("{P:%2s}", "");
+		xo_emit("{P:  }");
 		xo_emit("{t:name/%-6s}", netisr_proto2name(snwp->snw_proto));
 		xo_emit(" {t:length/%5u}", snwp->snw_len);
 		xo_emit(" {t:watermark/%5u}", snwp->snw_watermark);

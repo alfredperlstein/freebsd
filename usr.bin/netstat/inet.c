@@ -78,6 +78,7 @@ __FBSDID("$FreeBSD$");
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include <string.h>
 #include <unistd.h>
 #include <libxo/xo.h>
@@ -460,22 +461,22 @@ protopr(u_long off, const char *name, int af1, int proto)
 		xo_open_instance("socket");
 		if (Aflag) {
 			if (istcp)
-				xo_emit("{:address/%*lx} ",
+				xo_emit("{q:address/%*lx} ",
 					2 * (int)sizeof(void *),
 					(u_long)inp->inp_ppcb);
 			else
-				xo_emit("{:adddress/%*lx} ",
+				xo_emit("{q:adddress/%*lx} ",
 					2 * (int)sizeof(void *),
 					(u_long)so->so_pcb);
 		}
 #ifdef INET6
 		if ((inp->inp_vflag & INP_IPV6) != 0)
 			vchar = ((inp->inp_vflag & INP_IPV4) != 0) ?
-			    "46" : "6 ";
+			    "46" : "6";
 		else
 #endif
 		vchar = ((inp->inp_vflag & INP_IPV4) != 0) ?
-		    "4 " : "  ";
+		    "4" : "";
 		if (istcp && (tp->t_flags & TF_TOE) != 0)
 			xo_emit("{:protocol/%-3.3s%-2.2s/%s%s} ", "toe", vchar);
 		else
@@ -599,6 +600,7 @@ protopr(u_long off, const char *name, int af1, int proto)
 			    inp->inp_flowtype);
 		}
 		xo_emit("\n");
+		xo_close_instance("socket");
 	}
 	if (xig != oxig && xig->xig_gen != oxig->xig_gen) {
 		if (oxig->xig_count > xig->xig_count) {
@@ -1295,7 +1297,7 @@ icmp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 		    0)
 			return;
 		xo_emit(
-	"\tICMP address mask responses are {:icmp-address-responses/%sabled}\n",
+	"\tICMP address mask responses are {q:icmp-address-responses/%sabled}\n",
 		    i ? "en" : "dis");
 	}
 

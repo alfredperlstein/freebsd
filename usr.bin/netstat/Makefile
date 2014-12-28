@@ -42,7 +42,32 @@ LIBADD+=	netgraph
 CFLAGS+=-DNETGRAPH
 .endif
 
-DPADD+=${LIBXO}
-LDADD+=-lxo
+LIBADD+= xo
+
+# sudo pkg install npm
+# sudo npm install jsonlint -g
+JSONLINT?=/usr/local/bin/jsonlint
+NETSAT_JSON?=netstat --libxo json,pretty
+json-test:
+	@echo Testing no flags
+	${NETSAT_JSON} | ${JSONLINT}
+	@echo Testing all
+	${NETSAT_JSON} -nA | ${JSONLINT}
+	@echo Testing interfaces
+	${NETSAT_JSON} -i | ${JSONLINT}
+	@echo Testing repeat
+	${NETSAT_JSON} -w 1 -q 3 | ${JSONLINT}
+	@echo Testing mbufs 
+	${NETSAT_JSON} -m | ${JSONLINT}
+	@ echo Testing bpf
+	${NETSAT_JSON} -B | ${JSONLINT}
+	@echo Testing routes
+	${NETSAT_JSON} -nr | ${JSONLINT}
+	@echo Testing multicast
+	${NETSAT_JSON} -g | ${JSONLINT}
+	@echo Testing multicase routes
+	${NETSAT_JSON} -gs | ${JSONLINT}
+	@echo Testing netisr 
+	${NETSAT_JSON} -Q | ${JSONLINT}
 
 .include <bsd.prog.mk>
