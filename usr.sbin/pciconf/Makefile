@@ -4,6 +4,7 @@
 PROG=	pciconf
 SRCS=	pciconf.c cap.c err.c
 MAN=	pciconf.8
+LIBADD=	xo
 
 WARNS?=	3
 

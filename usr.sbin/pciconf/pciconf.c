@@ -45,6 +45,7 @@ static const char rcsid[] =
 #include <unistd.h>
 #include <sys/pciio.h>
 #include <sys/queue.h>
+#include <libxo/xo.h>
 
 #include <dev/pci/pcireg.h>
 
@@ -86,7 +87,8 @@ static int exitstatus = 0;
 static void
 usage(void)
 {
-	fprintf(stderr, "%s\n%s\n%s\n%s\n",
+
+	xo_error("%s\n%s\n%s\n%s\n",
 		"usage: pciconf -l [-bcevV] [device]",
 		"       pciconf -a device",
 		"       pciconf -r [-b | -h] device addr[:addr2]",
@@ -104,6 +106,10 @@ main(int argc, char **argv)
 
 	listmode = readmode = writemode = attachedmode = 0;
 	bars = caps = errors = verbose = vpd = byte = isshort = 0;
+
+	argc = xo_parse_args(argc, argv);
+	if (argc < 0)
+		usage();
 
 	while ((c = getopt(argc, argv, "abcehlrwvV")) != -1) {
 		switch(c) {
@@ -173,7 +179,7 @@ main(int argc, char **argv)
 	} else {
 		usage();
 	}
-
+	xo_finish();
 	return exitstatus;
 }
 
@@ -192,7 +198,7 @@ list_devs(const char *name, int verbose, int bars, int caps, int errors,
 
 	fd = open(_PATH_DEVPCI, (caps || errors) ? O_RDWR : O_RDONLY, 0);
 	if (fd < 0)
-		err(1, "%s", _PATH_DEVPCI);
+		xo_err(1, "%s", _PATH_DEVPCI);
 
 	bzero(&pc, sizeof(struct pci_conf_io));
 	pc.match_buf_len = sizeof(conf);
@@ -210,7 +216,7 @@ list_devs(const char *name, int verbose, int bars, int caps, int errors,
 
 	do {
 		if (ioctl(fd, PCIOCGETCONF, &pc) == -1)
-			err(1, "ioctl(PCIOCGETCONF)");
+			xo_err(1, "ioctl(PCIOCGETCONF)");
 
 		/*
 		 * 255 entries should be more than enough for most people,
@@ -221,28 +227,42 @@ list_devs(const char *name, int verbose, int bars, int caps, int errors,
 		 * not be desirable.
 		 */
 		if (pc.status == PCI_GETCONF_LIST_CHANGED) {
-			warnx("PCI device list changed, please try again");
+			xo_warnx("PCI device list changed, please try again");
 			exitstatus = 1;
 			close(fd);
 			return;
 		} else if (pc.status ==  PCI_GETCONF_ERROR) {
-			warnx("error returned from PCIOCGETCONF ioctl");
+			xo_warnx("error returned from PCIOCGETCONF ioctl");
 			exitstatus = 1;
 			close(fd);
 			return;
 		}
+		xo_open_list("pci-device");
 		for (p = conf; p < &conf[pc.num_matches]; p++) {
-			printf("%s%d@pci%d:%d:%d:%d:\tclass=0x%06x card=0x%08x "
-			    "chip=0x%08x rev=0x%02x hdr=0x%02x\n",
+			xo_open_instance("pci-device");
+			xo_emit("{kq:device/%s%d}",
 			    (p->pd_name && *p->pd_name) ? p->pd_name :
 			    "none",
 			    (p->pd_name && *p->pd_name) ? (int)p->pd_unit :
-			    none_count++, p->pc_sel.pc_domain,
-			    p->pc_sel.pc_bus, p->pc_sel.pc_dev,
-			    p->pc_sel.pc_func, (p->pc_class << 16) |
-			    (p->pc_subclass << 8) | p->pc_progif,
-			    (p->pc_subdevice << 16) | p->pc_subvendor,
-			    (p->pc_device << 16) | p->pc_vendor,
+			    none_count++);
+			xo_emit("@pci{:domain-number/%d}:"
+			    "{:bus-number/%d}:"
+			    "{:device-number/%d}:"
+			    "{:function-number/%d}:\t",
+			    p->pc_sel.pc_domain, p->pc_sel.pc_bus, 
+			    p->pc_sel.pc_dev, p->pc_sel.pc_func);
+			xo_emit("class={:base-class/0x%02x}"
+			    "{:sub-class/%02x/0x%02x}"
+			    "{:programming-interface/%02x/0x%02x} ",
+			    p->pc_class, p->pc_subclass, p->pc_progif);
+			xo_emit("card={:card-device-id/0x%04x}"
+			    "{:card-vendor-id/%04x/0x%04x} ",
+			    p->pc_subdevice, p->pc_subvendor);
+			xo_emit("chip={:chip-device-id/0x%04x}"
+			    "{:chip-vendor-id/%4x/0x%04x} ",
+			    p->pc_device, p->pc_vendor);
+			xo_emit("rev={:chip-revision/0x%02x} "
+			    "hdr={:header-type/0x%02x}\n",
 			    p->pc_revid, p->pc_hdr);
 			if (verbose)
 				list_verbose(p);
@@ -254,7 +274,9 @@ list_devs(const char *name, int verbose, int bars, int caps, int errors,
 				list_errors(fd, p);
 			if (vpd)
 				list_vpd(fd, p);
+			xo_close_instance("pci-device");
 		}
+		xo_close_list("pci-device");
 	} while (pc.status == PCI_GETCONF_MORE_DEVS);
 
 	close(fd);
@@ -282,6 +304,7 @@ list_bars(int fd, struct pci_conf *p)
 		return;
 	}
 
+	xo_open_list("base-address");
 	for (i = 0; i <= max; i++) {
 		bar.pbi_sel = p->pc_sel;
 		bar.pbi_reg = PCIR_BAR(i);
@@ -311,11 +334,14 @@ list_bars(int fd, struct pci_conf *p)
 			}
 			base = bar.pbi_base & ~((uint64_t)0xf);
 		}
-		printf("    bar   [%02x] = type %s, range %2d, base %#jx, ",
+		xo_open_instance("base-address");
+		xo_emit("    bar   [{:register-offset/%#02x}] = type {:type/%s}, range {:address-bits/%2d}, base {:base-address/%#jx}, ",
 		    PCIR_BAR(i), type, range, (uintmax_t)base);
-		printf("size %ju, %s\n", (uintmax_t)bar.pbi_length,
+		xo_emit("size {:size/%ju}, {:state/%s}\n", (uintmax_t)bar.pbi_length,
 		    bar.pbi_enabled ? "enabled" : "disabled");
+		xo_close_instance("base-address");
 	}
+	xo_close_list("base-address");
 }
 
 static void
@@ -327,7 +353,7 @@ list_verbose(struct pci_conf *p)
 
 	TAILQ_FOREACH(vi, &pci_vendors, link) {
 		if (vi->id == p->pc_vendor) {
-			printf("    vendor     = '%s'\n", vi->desc);
+			xo_emit("    vendor     = '{:vendor-name/%s}'\n", vi->desc);
 			break;
 		}
 	}
@@ -336,15 +362,15 @@ list_verbose(struct pci_conf *p)
 	} else {
 		TAILQ_FOREACH(di, &vi->devs, link) {
 			if (di->id == p->pc_device) {
-				printf("    device     = '%s'\n", di->desc);
+				xo_emit("    device     = '{:device-name/%s}'\n", di->desc);
 				break;
 			}
 		}
 	}
 	if ((dp = guess_class(p)) != NULL)
-		printf("    class      = %s\n", dp);
+		xo_emit("    class      = {:class-name/%s}\n", dp);
 	if ((dp = guess_subclass(p)) != NULL)
-		printf("    subclass   = %s\n", dp);
+		xo_emit("    subclass   = {:subclass-name/%s}\n", dp);
 }
 
 static void
@@ -352,6 +378,9 @@ list_vpd(int fd, struct pci_conf *p)
 {
 	struct pci_list_vpd_io list;
 	struct pci_vpd_element *vpd, *end;
+	int cap_printed;	// XXX: This function assumes that "capabilities"
+	int item_printed;	// and "items" are grouped together in the VPD
+	int vpd_printed;	// and that all "items" come at the end of VPD
 
 	list.plvi_sel = p->pc_sel;
 	list.plvi_len = 0;
@@ -367,13 +396,11 @@ list_vpd(int fd, struct pci_conf *p)
 
 	vpd = list.plvi_data;
 	end = (struct pci_vpd_element *)((char *)vpd + list.plvi_len);
-	for (; vpd < end; vpd = PVE_NEXT(vpd)) {
-		if (vpd->pve_flags == PVE_FLAG_IDENT) {
-			printf("    VPD ident  = '%.*s'\n",
-			    (int)vpd->pve_datalen, vpd->pve_data);
-			continue;
-		}
+	cap_printed = 0;
+	item_printed = 0;
+	vpd_printed = 0;
 
+	for (; vpd < end; vpd = PVE_NEXT(vpd)) {
 		/* Ignore the checksum keyword. */
 		if (!(vpd->pve_flags & PVE_FLAG_RW) &&
 		    memcmp(vpd->pve_keyword, "RV", 2) == 0)
@@ -384,23 +411,55 @@ list_vpd(int fd, struct pci_conf *p)
 		    memcmp(vpd->pve_keyword, "RW", 2) == 0)
 			continue;
 
-		/* Handle extended capability keyword. */
-		if (!(vpd->pve_flags & PVE_FLAG_RW) &&
-		    memcmp(vpd->pve_keyword, "CP", 2) == 0) {
-			printf("    VPD ro CP  = ID %02x in map 0x%x[0x%x]\n",
-			    (unsigned int)vpd->pve_data[0],
-			    PCIR_BAR((unsigned int)vpd->pve_data[1]),
-			    (unsigned int)vpd->pve_data[3] << 8 |
-			    (unsigned int)vpd->pve_data[2]);
+		if (!vpd_printed) {
+			xo_open_container("vital-product-data");
+			vpd_printed = 1;
+		}
+
+		if (vpd->pve_flags == PVE_FLAG_IDENT) {
+			xo_emit("    VPD ident  = '{:ident/%*s}'\n", 
+			    vpd->pve_datalen, (void*)&vpd->pve_data);
 			continue;
 		}
 
+		/* Handle extended capability keyword. */
+		if (!(vpd->pve_flags & PVE_FLAG_RW) &&
+		    memcmp(vpd->pve_keyword, "CP", 2) == 0) {
+			if (!cap_printed) {
+				xo_open_list("capability");
+				cap_printed = 1;
+			}
+			xo_open_instance("capability");
+			xo_emit("    VPD {:mode/ro} {:keyword/CP}  = ID {:ident-number/%02x} in map {:base-address/%#x}[{:data/%#x}]\n",
+			    (unsigned int)vpd->pve_data[0],
+			    PCIR_BAR((unsigned int)vpd->pve_data[1]),
+			    (unsigned int)vpd->pve_data[3] << 8 | (unsigned int)vpd->pve_data[2]);
+			xo_close_instance("capability");
+			continue;
+		}
+		if (cap_printed) {
+			xo_close_list("capability");
+		}
+
 		/* Remaining keywords should all have ASCII values. */
-		printf("    VPD %s %c%c  = '%.*s'\n",
+		if (!item_printed) {
+			xo_open_list("item");
+			item_printed = 1;
+		}
+		xo_open_instance("item");
+		xo_emit("    VPD {:read-write-mode/%s} {:keyword/%c%c}  = '{:value/%*s}'\n",
 		    vpd->pve_flags & PVE_FLAG_RW ? "rw" : "ro",
-		    vpd->pve_keyword[0], vpd->pve_keyword[1],
-		    (int)vpd->pve_datalen, vpd->pve_data);
+		    vpd->pve_keyword[0], vpd->pve_keyword[1], 
+		    vpd->pve_datalen, (void*)&vpd->pve_data);
+		xo_close_instance("item");
 	}
+	if (item_printed) {
+		xo_close_list("item");
+	}
+	if (vpd_printed) {
+		xo_close_container("vital-product-data");
+	}
+	xo_finish();
 	free(list.plvi_data);
 }
 
@@ -573,13 +632,13 @@ load_vendors(void)
 			if ((id == 0) || (strlen(str) < 1))
 				continue;
 			if ((cv = malloc(sizeof(struct pci_vendor_info))) == NULL) {
-				warn("allocating vendor entry");
+				xo_warn("allocating vendor entry");
 				error = 1;
 				break;
 			}
 			if ((cv->desc = strdup(str)) == NULL) {
 				free(cv);
-				warn("allocating vendor description");
+				xo_warn("allocating vendor description");
 				error = 1;
 				break;
 			}
@@ -594,17 +653,17 @@ load_vendors(void)
 			if ((id == 0) || (strlen(str) < 1))
 				continue;
 			if (cv == NULL) {
-				warnx("device entry with no vendor!");
+				xo_warnx("device entry with no vendor!");
 				continue;
 			}
 			if ((cd = malloc(sizeof(struct pci_device_info))) == NULL) {
-				warn("allocating device entry");
+				xo_warn("allocating device entry");
 				error = 1;
 				break;
 			}
 			if ((cd->desc = strdup(str)) == NULL) {
 				free(cd);
-				warn("allocating device description");
+				xo_warn("allocating device description");
 				error = 1;
 				break;
 			}
@@ -632,7 +691,7 @@ read_config(int fd, struct pcisel *sel, long reg, int width)
 	pi.pi_width = width;
 
 	if (ioctl(fd, PCIOCREAD, &pi) < 0)
-		err(1, "ioctl(PCIOCREAD)");
+		xo_err(1, "ioctl(PCIOCREAD)");
 
 	return (pi.pi_data);
 }
@@ -648,7 +707,7 @@ getdevice(const char *name)
 
 	fd = open(_PATH_DEVPCI, O_RDONLY, 0);
 	if (fd < 0)
-		err(1, "%s", _PATH_DEVPCI);
+		xo_err(1, "%s", _PATH_DEVPCI);
 
 	bzero(&pc, sizeof(struct pci_conf_io));
 	pc.match_buf_len = sizeof(conf);
@@ -662,16 +721,16 @@ getdevice(const char *name)
 	 * find the start of the unit.
 	 */
 	if (name[0] == '\0')
-		errx(1, "Empty device name");
+		xo_errx(1, "Empty device name");
 	cp = strchr(name, '\0');
 	assert(cp != NULL && cp != name);
 	cp--;
 	while (cp != name && isdigit(cp[-1]))
 		cp--;
 	if (cp == name || !isdigit(*cp))
-		errx(1, "Invalid device name");
+		xo_errx(1, "Invalid device name");
 	if ((size_t)(cp - name) + 1 > sizeof(patterns[0].pd_name))
-		errx(1, "Device name is too long");
+		xo_errx(1, "Device name is too long");
 	memcpy(patterns[0].pd_name, name, cp - name);
 	patterns[0].pd_unit = strtol(cp, &cp, 10);
 	assert(*cp == '\0');
@@ -681,13 +740,13 @@ getdevice(const char *name)
 	pc.patterns = patterns;
 
 	if (ioctl(fd, PCIOCGETCONF, &pc) == -1)
-		err(1, "ioctl(PCIOCGETCONF)");
+		xo_err(1, "ioctl(PCIOCGETCONF)");
 	if (pc.status != PCI_GETCONF_LAST_DEVICE &&
 	    pc.status != PCI_GETCONF_MORE_DEVS)
-		errx(1, "error returned from PCIOCGETCONF ioctl");
+		xo_errx(1, "error returned from PCIOCGETCONF ioctl");
 	close(fd);
 	if (pc.num_matches == 0)
-		errx(1, "Device not found");
+		xo_errx(1, "Device not found");
 	return (conf[0].pc_sel);
 }
 
@@ -726,7 +785,7 @@ parsesel(const char *str)
 			sel.pc_domain = 0;
 	}
 	if (*ep != '\x0' || ep == epbase)
-		errx(1, "cannot parse selector %s", str);
+		xo_errx(1, "cannot parse selector %s", str);
 	return sel;
 }
 
@@ -747,8 +806,10 @@ getsel(const char *str)
 static void
 readone(int fd, struct pcisel *sel, long reg, int width)
 {
-
-	printf("%0*x", width*2, read_config(fd, sel, reg, width));
+	xo_open_instance("config-register");	
+	xo_emit("{ke:offset/0x%02x}{:data/0x%0*x}{e:width/%d}", 
+	    reg, width*2, read_config(fd, sel, reg, width), width);
+	xo_close_instance("config-register");
 }
 
 static void
@@ -764,7 +825,7 @@ readit(const char *name, const char *reg, int width)
 
 	fd = open(_PATH_DEVPCI, O_RDWR, 0);
 	if (fd < 0)
-		err(1, "%s", _PATH_DEVPCI);
+		xo_err(1, "%s", _PATH_DEVPCI);
 
 	rend = rstart = strtol(reg, &end, 0);
 	if (end && *end == ':') {
@@ -772,14 +833,20 @@ readit(const char *name, const char *reg, int width)
 		rend = strtol(end, (char **) 0, 0);
 	}
 	sel = getsel(name);
+	xo_open_list("config-register");
 	for (i = 1, r = rstart; r <= rend; i++, r += width) {
 		readone(fd, &sel, r, width);
 		if (i && !(i % 8))
-			putchar(' ');
-		putchar(i % (16/width) ? ' ' : '\n');
+			xo_emit(" ");
+		if (i % (16/width)) {
+			xo_emit(" ");
+		} else {
+			xo_emit("\n");
+		}
 	}
 	if (i % (16/width) != 1)
-		putchar('\n');
+		xo_emit("\n");
+	xo_close_list("config-register");
 	close(fd);
 }
 
@@ -796,10 +863,10 @@ writeit(const char *name, const char *reg, const char *data, int width)
 
 	fd = open(_PATH_DEVPCI, O_RDWR, 0);
 	if (fd < 0)
-		err(1, "%s", _PATH_DEVPCI);
+		xo_err(1, "%s", _PATH_DEVPCI);
 
 	if (ioctl(fd, PCIOCWRITE, &pi) < 0)
-		err(1, "ioctl(PCIOCWRITE)");
+		xo_err(1, "ioctl(PCIOCWRITE)");
 }
 
 static void
@@ -812,11 +879,13 @@ chkattached(const char *name)
 
 	fd = open(_PATH_DEVPCI, O_RDWR, 0);
 	if (fd < 0)
-		err(1, "%s", _PATH_DEVPCI);
+		xo_err(1, "%s", _PATH_DEVPCI);
 
 	if (ioctl(fd, PCIOCATTACHED, &pi) < 0)
-		err(1, "ioctl(PCIOCATTACHED)");
+		xo_err(1, "ioctl(PCIOCATTACHED)");
 
+	xo_open_container("device-status");
+	xo_emit("{:name/%s}: {:status/%s%s}\n", name, pi.pi_data == 0 ? "not " : "", "attached");
+	xo_close_container("device-status");
 	exitstatus = pi.pi_data ? 0 : 2; /* exit(2), if NOT attached */
-	printf("%s: %s%s\n", name, pi.pi_data == 0 ? "not " : "", "attached");
 }
