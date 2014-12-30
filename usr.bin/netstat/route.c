@@ -704,9 +704,8 @@ p_rtentry_sysctl(const char *name, struct rt_msghdr *rtm)
 
 	p_sockaddr("destination", &addr.u_sa, &mask.u_sa, rtm->rtm_flags, wid_dst);
 	p_sockaddr("gateway", &gw.u_sa, NULL, RTF_HOST, wid_gw);
-	snprintf(buffer, sizeof(buffer),
-		 "{d:flags/%%-%d.%ds} ", wid_flags, wid_flags);
-
+	snprintf(buffer, sizeof(buffer), "{[:-%d}{:flags/%%s}{]:}",
+	    wid_flags);
 	p_flags(rtm->rtm_flags, buffer);
 	if (Wflag) {
 		xo_emit("{t:use/%*lu} ",
@@ -755,11 +754,9 @@ p_sockaddr(const char *name, struct sockaddr *sa, struct sockaddr *mask,
 	} else {
 		if (numeric_addr) {
 			snprintf(buf, sizeof(buf), "{[:%d}{:%s/%%s}{]:} ", -width, name);
-			//fprintf(stderr, "** fmt1: %s %s **\n", buf, cp);
 			xo_emit(buf, cp);
 		} else {
 			snprintf(buf, sizeof(buf), "{[:%d}{:%s/%%-.*s}{]:} ", -width, name);
-			//fprintf(stderr, "** fmt2: %s %s **\n", buf, cp);
 			xo_emit(buf, width, cp);
 		}
 	}
@@ -882,11 +879,11 @@ p_flags(int f, const char *format)
 
 	xo_emit(format, fmt_flags(f));
 
-	xo_open_list("flag");
+	xo_open_list("flags_pretty");
 	for (p = bits; p->b_mask; p++)
 		if (p->b_mask & f)
-		    xo_emit("{le:flag/%s}", p->b_name);
-	xo_close_list("flag");
+		    xo_emit("{le:flags_pretty/%s}", p->b_name);
+	xo_close_list("flags_pretty");
 }
 
 static const char *
@@ -921,7 +918,8 @@ p_rtentry_kvm(const char *name, struct rtentry *rt)
 		    
 	p_sockaddr("destination", &addr.u_sa, &mask.u_sa, rt->rt_flags, wid_dst);
 	p_sockaddr("gateway", kgetsa(rt->rt_gateway), NULL, RTF_HOST, wid_gw);
-	snprintf(buffer, sizeof(buffer), "%%-%d.%ds ", wid_flags, wid_flags);
+	snprintf(buffer, sizeof(buffer), "{[:-%d}{:flags/%%s}{]:}",
+	    wid_flags);
 	p_flags(rt->rt_flags, buffer);
 	if (Wflag) {
 		xo_emit("{[:%d}{t:use/%ju}{]:} ", -wid_pksent,
