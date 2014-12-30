@@ -1230,11 +1230,11 @@ icmp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 	for (first = 1, i = 0; i < ICMP_MAXTYPE + 1; i++)
 		if (icmpstat.icps_outhist[i] != 0) {
 			if (first) {
-				xo_open_list("output-histagram");
+				xo_open_list("output-histogram");
 				xo_emit("\tOutput histogram:\n");
 				first = 0;
 			}
-			xo_open_instance("output-histagram");
+			xo_open_instance("output-histogram");
 			if (icmpnames[i] != NULL)
 				xo_emit("\t\t{k:name/%s}: {:count/%lu}\n",
 					icmpnames[i],
@@ -1243,10 +1243,10 @@ icmp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 				xo_emit(
 			"\t\tunknown ICMP #{k:name/%d}: {:count/%lu}\n",
 					i, icmpstat.icps_outhist[i]);
-			xo_close_instance("output-histagram");
+			xo_close_instance("output-histogram");
 		}
 	if (!first)
-		xo_close_list("output-histagram");
+		xo_close_list("output-histogram");
 
 	p(icps_badcode, "\t{:dropped-bad-code/%lu} "
 	  "{N:/message%s with bad code fields}\n");
@@ -1264,11 +1264,11 @@ icmp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 	for (first = 1, i = 0; i < ICMP_MAXTYPE + 1; i++)
 		if (icmpstat.icps_inhist[i] != 0) {
 			if (first) {
-				xo_open_list("input-histagram");
+				xo_open_list("input-histogram");
 				xo_emit("\tInput histogram:\n");
 				first = 0;
 			}
-			xo_open_instance("input-histagram");
+			xo_open_instance("input-histogram");
 			if (icmpnames[i] != NULL)
 				xo_emit("\t\t{k:name/%s}: {:count/%lu}\n",
 					icmpnames[i],
@@ -1277,10 +1277,10 @@ icmp_stats(u_long off, const char *name, int af1 __unused, int proto __unused)
 				xo_emit(
 			"\t\tunknown ICMP #{k:name/%d}: {:count/%lu}\n",
 					i, icmpstat.icps_inhist[i]);
-			xo_close_instance("input-histagram");
+			xo_close_instance("input-histogram");
 		}
 	if (!first)
-		xo_close_list("input-histagram");
+		xo_close_list("input-histogram");
 
 	p(icps_reflect, "\t{:sent-packets/%lu} "
 	  "{N:/message response%s generated}\n");
