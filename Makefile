@@ -100,6 +100,9 @@
 # For more information, see the build(7) manual page.
 #
 
+help:
+	echo "Just read the Makefile"
+
 # Note: we use this awkward construct to be compatible with FreeBSD's
 # old make used in 10.0 and 9.2 and earlier.
 .if defined(MK_META_MODE) && ${MK_META_MODE} == "yes" && !make(showconfig)
